@@ -1,0 +1,12 @@
+import test from 'node:test';import assert from 'node:assert/strict';
+import {can,changeState,DEFAULT_GRANTS} from '../packages/core/policies.mjs';
+import {planRefund,remainingRefundableMinor,nextRefundState} from '../packages/skeleton/refunds.mjs';
+import {verifyCheckoutSignature,verifyWebhook} from '../packages/skeleton/signatures.mjs';
+import {createHmac} from 'node:crypto';
+const actor={id:'user1',role:'CUSTOMER',verified:true};const admin={id:'admin1',role:'SUPER_ADMIN',verified:true};
+test('RBAC denies by default and keeps privileged operations separate',()=>{assert.equal(can(actor,'catalog','view'),true);assert.equal(can(actor,'roles','manage'),false);assert.equal(can(admin,'roles','manage'),true);assert.equal(can(null,'roles','manage'),false)});
+test('cannot skip order production states',()=>{assert.throws(()=>changeState('order','pending_payment','ready_to_ship',admin),/Invalid status/);assert.equal(changeState('order','in_production','quality_check',admin).to,'quality_check')});
+test('customer cannot change admin workflow',()=>assert.throws(()=>changeState('order','pending_payment','pending_proof',actor),/Transition not authorized/));
+test('partial refunds enforce provider cap and fee deduction',()=>{const p=planRefund({capturedMinor:100000,settledRefundsMinor:25000,pendingRefundsMinor:10000,requestedMinor:30000,feeDeductionMinor:2500,reason:'Product damaged',actorId:'finance1'});assert.equal(p.providerRefundMinor,27500);assert.equal(remainingRefundableMinor({capturedMinor:100000,settledRefundsMinor:25000,pendingRefundsMinor:10000}),65000);assert.throws(()=>planRefund({capturedMinor:5000,requestedMinor:7000,reason:'Product damaged',actorId:'f1'}),/exceeds/)});
+test('refund transitions require approval',()=>{assert.equal(nextRefundState('requested','approved'),'approved');assert.throws(()=>nextRefundState('requested','succeeded'),/Invalid/)});
+test('signature check is tied to exact gateway order/payment',()=>{const secret='this-is-long-enough-secret',sig=createHmac('sha256',secret).update('o1|p1').digest('hex');assert.equal(verifyCheckoutSignature({orderId:'o1',paymentId:'p1',signature:sig,secret}),true);assert.equal(verifyCheckoutSignature({orderId:'o1',paymentId:'p2',signature:sig,secret}),false);const body=JSON.stringify({event:'test'}),websig=createHmac('sha256',secret).update(body).digest('hex');assert.equal(verifyWebhook(body,websig,secret),true)});

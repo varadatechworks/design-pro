@@ -1,0 +1,5 @@
+/** Reused from varadatechworks/app-skeleton modules/payments/{index,checkout}.mjs, main @2cc6011. */
+import {createHmac,timingSafeEqual} from 'node:crypto';
+function checkHex(s){return typeof s==='string'&&/^[a-f0-9]{64}$/i.test(s);}
+export function verifyWebhook(rawBody,signature,secret){if(!(typeof rawBody==='string'||Buffer.isBuffer(rawBody))||!checkHex(signature)||typeof secret!=='string'||secret.length<16)return false;const received=Buffer.from(signature,'hex');const expected=createHmac('sha256',secret).update(rawBody).digest();return received.length===expected.length&&timingSafeEqual(received,expected);}
+export function verifyCheckoutSignature({orderId,paymentId,signature,secret}){if(!orderId||!paymentId||!checkHex(signature)||typeof secret!=='string'||secret.length<16)return false;const received=Buffer.from(signature,'hex');const expected=createHmac('sha256',secret).update(`${orderId}|${paymentId}`).digest();return received.length===expected.length&&timingSafeEqual(received,expected);}
