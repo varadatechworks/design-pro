@@ -37,121 +37,152 @@ The ER uses `CREATE TABLE` and declared `REFERENCES` found in **1 selected basel
 
 ```mermaid
 erDiagram
-    USERS {
-        string id PK
-        string display_name
-        string email
-        string password_hash
-        string role
+    AUDIT_EVENTS {
+        TEXT id PK
+        TEXT actor_id
+        TEXT event_type
+        TEXT entity_type
+        TEXT entity_id
+        TEXT detail
+        TEXT at
     }
     CUSTOM_ROLES {
-        string id PK
-        string code
-        string name
-        string permissions
-        string status
-    }
-    SESSIONS {
-        string id PK
-        string token_hash
-        string user_id
-        string csrf_hash
-        string expires_at
-    }
-    QUOTES {
-        string id PK
-        string user_id
-        string organization_id
-        string status
-        string configuration
-    }
-    ORDERS {
-        string id PK
-        string quote_id
-        string user_id
-        string status
-        string total_minor
-    }
-    PROOFS {
-        string id PK
-        string order_id
-        string version
-        string status
-        string notes
-    }
-    PAYMENTS {
-        string id PK
-        string order_id
-        string provider
-        string provider_order_id
-        string provider_payment_id
-    }
-    REFUNDS {
-        string id PK
-        string order_id
-        string payment_id
-        string requested_minor
-        string fee_minor
-    }
-    SHIPMENTS {
-        string id PK
-        string order_id
-        string carrier
-        string tracking_number
-        string status
-    }
-    SHIPMENT_EVENTS {
-        string id PK
-        string shipment_id
-        string status
-        string location
-        string notes
-    }
-    WORK_ORDERS {
-        string id PK
-        string order_id
-        string machine
-        string status
-        string quantity
+        TEXT code PK
+        TEXT name
+        TEXT permissions
+        TEXT status
+        TEXT created_by
+        TEXT created_at
     }
     INVENTORY {
-        string id PK
-        string name
-        string unit
-        string available
-        string reserved
+        TEXT id PK
+        TEXT name
+        TEXT unit
+        REAL available
+        REAL reserved
+        REAL reorder_level
+        TEXT updated_at
     }
-    AUDIT_EVENTS {
-        string id PK
-        string actor_id
-        string event_type
-        string entity_type
-        string entity_id
+    ORDERS {
+        TEXT id PK
+        TEXT quote_id FK
+        TEXT user_id FK
+        TEXT status
+        INTEGER total_minor
+        TEXT currency
+        TEXT proof_id
+        TEXT address
+        TEXT created_at
     }
-    WEBHOOKS {
-        string id PK
-        string event_id
-        string provider
-        string payload_hash
-        string created_at
+    PAYMENTS {
+        TEXT id PK
+        TEXT order_id FK
+        TEXT provider
+        TEXT provider_order_id
+        TEXT provider_payment_id
+        INTEGER amount_minor
+        TEXT status
+        TEXT created_at
+        TEXT updated_at
+    }
+    PROOFS {
+        TEXT id PK
+        TEXT order_id FK
+        INTEGER version
+        TEXT status
+        TEXT notes
+        TEXT approved_by
+        TEXT approved_at
+        TEXT created_at
+    }
+    QUOTES {
+        TEXT id PK
+        TEXT user_id FK
+        TEXT organization_id
+        TEXT status
+        TEXT configuration
+        TEXT estimate
+        INTEGER version
+        INTEGER firm_total_minor
+        TEXT expires_at
+    }
+    REFUNDS {
+        TEXT id PK
+        TEXT order_id FK
+        TEXT payment_id FK
+        INTEGER requested_minor
+        INTEGER fee_minor
+        INTEGER refund_minor
+        TEXT status
+        TEXT requested_by
+        TEXT approved_by
+    }
+    SESSIONS {
+        TEXT token_hash PK
+        TEXT user_id FK
+        TEXT csrf_hash
+        TEXT expires_at
+        TEXT created_at
     }
     SETTINGS {
-        string id PK
-        string key
-        string value
-        string updated_at
+        TEXT value
+        TEXT updated_at
     }
-    USERS ||--o{ SESSIONS : references
-    USERS ||--o{ QUOTES : references
-    QUOTES ||--o{ ORDERS : references
-    USERS ||--o{ ORDERS : references
-    ORDERS ||--o{ PROOFS : references
-    ORDERS ||--o{ PAYMENTS : references
-    ORDERS ||--o{ REFUNDS : references
-    PAYMENTS ||--o{ REFUNDS : references
-    ORDERS ||--o{ SHIPMENTS : references
-    SHIPMENTS ||--o{ SHIPMENT_EVENTS : references
-    ORDERS ||--o{ WORK_ORDERS : references
+    SHIPMENT_EVENTS {
+        TEXT id PK
+        TEXT shipment_id FK
+        TEXT status
+        TEXT location
+        TEXT notes
+        TEXT at
+    }
+    SHIPMENTS {
+        TEXT id PK
+        TEXT order_id FK
+        TEXT carrier
+        TEXT tracking_number
+        TEXT status
+        TEXT address
+        TEXT created_at
+        TEXT updated_at
+    }
+    USERS {
+        TEXT id PK
+        TEXT display_name
+        TEXT email
+        TEXT password_hash
+        TEXT role
+        TEXT status
+        INTEGER email_verified
+        TEXT organization_id
+        TEXT created_at
+    }
+    WEBHOOKS {
+        TEXT event_id PK
+        TEXT provider
+        TEXT payload_hash
+        TEXT created_at
+    }
+    WORK_ORDERS {
+        TEXT id PK
+        TEXT order_id FK
+        TEXT machine
+        TEXT status
+        INTEGER quantity
+        TEXT notes
+        TEXT created_at
+    }
+    USERS ||--o{ SESSIONS : user_id
+    USERS ||--o{ QUOTES : user_id
+    QUOTES ||--o{ ORDERS : quote_id
+    USERS ||--o{ ORDERS : user_id
+    ORDERS ||--o{ PROOFS : order_id
+    ORDERS ||--o{ PAYMENTS : order_id
+    ORDERS ||--o{ REFUNDS : order_id
+    PAYMENTS ||--o{ REFUNDS : payment_id
+    ORDERS ||--o{ SHIPMENTS : order_id
+    SHIPMENTS ||--o{ SHIPMENT_EVENTS : shipment_id
+    ORDERS ||--o{ WORK_ORDERS : order_id
 ```
 
 ## 4. Database schema and migration registry
