@@ -3,7 +3,7 @@ Runs a deterministic mocked UI without real external API/payment credentials.
 """
 from pathlib import Path
 from playwright.sync_api import sync_playwright
-import json,re
+import json,re,os,shutil
 
 ROOT=Path(__file__).resolve().parents[1]
 HTML=re.sub(r'<script[^>]*src="/app.js"[^>]*></script>','',(ROOT/'apps/web/index.html').read_text())
@@ -60,7 +60,7 @@ def run():
  script="import {CATEGORIES,MATERIALS,FINISHES,KIT_ITEMS} from './packages/core/catalog.mjs';console.log(JSON.stringify({categories:CATEGORIES,materials:MATERIALS,finishes:FINISHES,kitItems:KIT_ITEMS}))"
  CATALOG=json.loads(subprocess.check_output(['node','--input-type=module','-e',script],cwd=ROOT,text=True))
  with sync_playwright() as p:
-  browser=p.chromium.launch(executable_path='/usr/bin/chromium',headless=True,args=['--no-sandbox'])
+  browser=p.chromium.launch(executable_path=os.environ.get('CHROMIUM_PATH') or shutil.which('chromium') or shutil.which('chromium-browser') or p.chromium.executable_path,headless=True,args=['--no-sandbox'])
   for width in (375,768,1440):
    pg,errors=page_setup(browser,{'width':width,'height':900},'SUPER_ADMIN')
    assert pg.locator('.portal-sidebar').count()==1
