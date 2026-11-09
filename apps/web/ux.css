@@ -138,3 +138,22 @@ button{cursor:pointer}
 .category-card:hover .product-illustration{transform:translateY(-7px) scale(1.03)}
 .category-card{border-radius:8px!important;overflow:hidden!important;box-shadow:0 7px 20px rgba(33,37,36,.035)}
 .category-card:hover{box-shadow:0 18px 30px rgba(33,37,36,.095)!important}
+
+/* UAT refinement: consistent accessible feedback and a less crowded professional console. */
+.toast-v2{display:flex!important;align-items:flex-start;justify-content:space-between;gap:16px;z-index:10050}
+.toast-v2>span{flex:1;min-width:0}
+.toast-dismiss{border:1px solid #ffffff55;background:transparent;color:inherit;min-width:30px;min-height:30px;border-radius:6px;font-size:22px;line-height:1;margin:-4px -7px -4px 0}
+.toast-dismiss:hover,.toast-dismiss:focus-visible{background:#ffffff2b}
+.portal-toolbar{border-bottom:1px solid var(--console-line)}
+.portal-toolbar h3,.content-head h3{letter-spacing:-.035em}
+.portal-body{min-width:0}
+.workspace-data{min-width:0}
+.data-table tbody tr:hover{background:#f9faf7}
+.category-card:focus-within{outline:3px solid #c17d53;outline-offset:3px}
+.modal-backdrop{z-index:10020}
+.modal{box-shadow:0 22px 70px #0b181f45}
+.modal-error:not(:empty){border-left:3px solid #b94c45;background:#fff2ef;padding:10px 12px;border-radius:3px;line-height:1.6}
+#authSubmit[aria-busy=true]{cursor:progress;opacity:.6}
+@media(max-width:760px){.data-table{font-size:12px}.data-table th,.data-table td{padding:12px 10px}.modal{max-height:calc(100dvh - 30px);overflow-y:auto}}
+
+.toast-v2[hidden]{display:none!important}

@@ -6,6 +6,7 @@ import {fileURLToPath} from 'node:url';
 import {openDb,migrate,newId,now,audit,record,runAtomic} from './db.mjs';
 import {createUser,getUser,verifyPassword,makeSession,sessionFromRequest,requireActor,csrfCheck,profile,clearSession,sessionCookie} from './auth.mjs';
 import {estimate} from '../../packages/core/estimate.mjs';
+import {strictJsonObject,strictMinorUnits} from '../../packages/core/request-validation.mjs';
 import {normalizeDestinations,shipmentCoverage} from '../../packages/core/fulfillment.mjs';
 import {CATEGORIES,MATERIALS,FINISHES,KIT_ITEMS} from '../../packages/core/catalog.mjs';
 import {DEFAULT_GRANTS,FLOWS,can,changeState} from '../../packages/core/policies.mjs';
@@ -17,10 +18,16 @@ const PROD=process.env.NODE_ENV==='production';
 function httpError(code,message){return Object.assign(new Error(message),{status:code});}
 function safeJson(res,status,data){const body=JSON.stringify(data);res.writeHead(status,{'Content-Type':'application/json; charset=utf-8','Cache-Control':'no-store','X-Content-Type-Options':'nosniff','X-Frame-Options':'DENY','Referrer-Policy':'strict-origin-when-cross-origin'});res.end(body);}
 function rateLimit(rate,req,group,max){const k=(req.socket.remoteAddress||'?')+':'+group;const t=Date.now(),window=60_000,old=rate.get(k)||[];const valid=old.filter(x=>t-x<window);if(valid.length>=max)throw httpError(429,'Too many requests. Try again shortly.');valid.push(t);rate.set(k,valid);if(rate.size>50000)rate.clear();}
-async function body(req,max=80_000){let raw='';for await(const chunk of req){raw+=chunk.toString();if(Buffer.byteLength(raw)>max)throw httpError(413,'Request is too large');}try{return JSON.parse(raw||'{}');}catch{throw httpError(400,'Invalid JSON');}}
+async function body(req,max=80_000){
+ const raw=await rawBody(req,max);
+ if(raw.length&&!/^application\/json(?:;|$)/i.test(String(req.headers['content-type']||'')))throw httpError(415,'Send JSON with Content-Type: application/json.');
+ let text;
+ try{text=new TextDecoder('utf-8',{fatal:true}).decode(raw);}catch{throw httpError(400,'Request body must use valid UTF-8.');}
+ return strictJsonObject(text);
+}
 async function rawBody(req,max=250_000){const parts=[];let n=0;for await(const part of req){n+=part.length;if(n>max)throw httpError(413,'Request too large');parts.push(part);}return Buffer.concat(parts);}
 function ownOrStaff(actor,userId,resource='orders'){return actor.id===userId||(actor.role!=='CUSTOMER'&&can(actor,resource,'view'));}
-function moneyInt(v,name){if(!Number.isSafeInteger(Number(v))||Number(v)<0||Number(v)>1_000_000_000)throw httpError(400,`Invalid ${name}`);return Number(v);}
+function moneyInt(v,name){return strictMinorUnits(v,name);}
 function addressText(v){return String(v||'').trim().slice(0,800);}
 function safeRoleGrants(g){if(!g||typeof g!=='object'||Array.isArray(g))throw httpError(400,'Invalid role permissions');const result={};for(const [k,actions] of Object.entries(g)){if(!/^[a-z_]{2,40}$/.test(k)||!Array.isArray(actions)||actions.some(x=>!['view','create','edit','delete','approve','export','manage'].includes(x)))throw httpError(400,'Invalid permissions');result[k]=[...new Set(actions)];}return result;}
 function requireStaff(db,req,resource,action){const u=requireActor(db,req,resource,action);if(u.role==='CUSTOMER')throw httpError(403,'Staff permission required');return u;}
@@ -333,7 +340,7 @@ export function createServer(db=migrate(openDb())){
    requireStaff(db,req,'audit','view');return safeJson(res,200,{events:list(db,'SELECT * FROM audit_events ORDER BY at DESC LIMIT 200')});
   }
   throw httpError(404,'Endpoint not found');
- }catch(e){const requestId=newId('req');const raw=String(e?.message||'');const persistenceError=/SQLITE_|database is locked|database disk|FOREIGN KEY constraint failed|malformed database|no such table/i.test(raw);const status=Number(e.status)||(/UNIQUE constraint failed/.test(raw)?409:persistenceError?500:400);if(status>=500)console.error('DesignPro request failed',requestId,raw);safeJson(res,status,{error:status>=500?'Something went wrong while processing your request. Please try again or contact support.':(/UNIQUE constraint failed/.test(raw)?'This record already exists. Refresh and try again.':raw||'Please check the submitted details.'),requestId});}}
+ }catch(e){const requestId=newId('req');const raw=String(e?.message||'');const persistenceError=/SQLITE_|database is locked|database disk|FOREIGN KEY constraint failed|malformed database|no such table/i.test(raw);const status=Number(e.status)||(/UNIQUE constraint failed/.test(raw)?409:persistenceError||e instanceof TypeError||e instanceof ReferenceError?500:400);if(status>=500)console.error('DesignPro request failed',requestId,raw);safeJson(res,status,{error:status>=500?'Something went wrong while processing your request. Please try again or contact support.':(/UNIQUE constraint failed/.test(raw)?'This record already exists. Refresh and try again.':raw||'Please check the submitted details.'),requestId});}}
  return http.createServer(handler);
 }
 const isMain=process.argv[1]&&resolve(process.argv[1])===fileURLToPath(import.meta.url);
