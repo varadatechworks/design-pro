@@ -11,3 +11,10 @@
 9. **Compliance:** privacy policy, artwork licence/IP terms, local tax/business compliance, refund/cancellation policy, consumer disclosure of concept-only renders.
 
 `PAYMENTS_ENABLED=false` must remain set until finance and security approvals are recorded. Production configuration must never contain demo admin credentials.
+
+
+## v0.3.0 changes and launch status
+
+UAT may exercise (using **simulated** payments and manual tracking only) multi-address shipping allocation, work-card statuses, QC fail/pass, delivery gating, customer support tickets, finance fee deductions and simulated refund settlement. These are **not** proof of real-gateway, carrier or production-run readiness.
+
+Never set `UAT_DEMO_ENABLED=true` in production; server code also explicitly rejects simulated payment/refund endpoints in `NODE_ENV=production`. Real checkout requires `PAYMENTS_ENABLED=true` with verified Razorpay keys, webhook secret, per-merchant configuration and accounting reconciliation. No production-ready factory BOM or tax calculation is supplied by sample rates.

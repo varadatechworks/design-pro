@@ -6,6 +6,7 @@ import {fileURLToPath} from 'node:url';
 import {openDb,migrate,newId,now,audit,record,runAtomic} from './db.mjs';
 import {createUser,getUser,verifyPassword,makeSession,sessionFromRequest,requireActor,csrfCheck,profile,clearSession,sessionCookie} from './auth.mjs';
 import {estimate} from '../../packages/core/estimate.mjs';
+import {normalizeDestinations,shipmentCoverage} from '../../packages/core/fulfillment.mjs';
 import {CATEGORIES,MATERIALS,FINISHES,KIT_ITEMS} from '../../packages/core/catalog.mjs';
 import {DEFAULT_GRANTS,FLOWS,can,changeState} from '../../packages/core/policies.mjs';
 import {planRefund} from '../../packages/skeleton/refunds.mjs';
@@ -13,10 +14,9 @@ import {verifyCheckoutSignature,verifyWebhook} from '../../packages/skeleton/sig
 
 const WEB_ROOT=resolve(fileURLToPath(new URL('../web/',import.meta.url)));
 const PROD=process.env.NODE_ENV==='production';
-const rate=new Map();
 function httpError(code,message){return Object.assign(new Error(message),{status:code});}
 function safeJson(res,status,data){const body=JSON.stringify(data);res.writeHead(status,{'Content-Type':'application/json; charset=utf-8','Cache-Control':'no-store','X-Content-Type-Options':'nosniff','X-Frame-Options':'DENY','Referrer-Policy':'strict-origin-when-cross-origin'});res.end(body);}
-function rateLimit(req,group,max){const k=(req.socket.remoteAddress||'?')+':'+group;const t=Date.now(),window=60_000,old=rate.get(k)||[];const valid=old.filter(x=>t-x<window);if(valid.length>=max)throw httpError(429,'Too many requests. Try again shortly.');valid.push(t);rate.set(k,valid);if(rate.size>50000)rate.clear();}
+function rateLimit(rate,req,group,max){const k=(req.socket.remoteAddress||'?')+':'+group;const t=Date.now(),window=60_000,old=rate.get(k)||[];const valid=old.filter(x=>t-x<window);if(valid.length>=max)throw httpError(429,'Too many requests. Try again shortly.');valid.push(t);rate.set(k,valid);if(rate.size>50000)rate.clear();}
 async function body(req,max=80_000){let raw='';for await(const chunk of req){raw+=chunk.toString();if(Buffer.byteLength(raw)>max)throw httpError(413,'Request is too large');}try{return JSON.parse(raw||'{}');}catch{throw httpError(400,'Invalid JSON');}}
 async function rawBody(req,max=250_000){const parts=[];let n=0;for await(const part of req){n+=part.length;if(n>max)throw httpError(413,'Request too large');parts.push(part);}return Buffer.concat(parts);}
 function ownOrStaff(actor,userId,resource='orders'){return actor.id===userId||(actor.role!=='CUSTOMER'&&can(actor,resource,'view'));}
@@ -25,6 +25,8 @@ function addressText(v){return String(v||'').trim().slice(0,800);}
 function safeRoleGrants(g){if(!g||typeof g!=='object'||Array.isArray(g))throw httpError(400,'Invalid role permissions');const result={};for(const [k,actions] of Object.entries(g)){if(!/^[a-z_]{2,40}$/.test(k)||!Array.isArray(actions)||actions.some(x=>!['view','create','edit','delete','approve','export','manage'].includes(x)))throw httpError(400,'Invalid permissions');result[k]=[...new Set(actions)];}return result;}
 function requireStaff(db,req,resource,action){const u=requireActor(db,req,resource,action);if(u.role==='CUSTOMER')throw httpError(403,'Staff permission required');return u;}
 function getOrder(db,id){const r=db.prepare('SELECT * FROM orders WHERE id=?').get(id);if(!r)throw httpError(404,'Order not found');return r;}
+function destinationsFor(db,orderId){return list(db,'SELECT * FROM order_destinations WHERE order_id=? ORDER BY created_at,id',orderId);}
+function shipmentsFor(db,orderId){return list(db,'SELECT * FROM shipments WHERE order_id=?',orderId);}
 function getQuote(db,id){const r=db.prepare('SELECT * FROM quotes WHERE id=?').get(id);if(!r)throw httpError(404,'Quote not found');return r;}
 function list(db,sql,...args){return db.prepare(sql).all(...args);}
 function ensurePayments(){if(process.env.PAYMENTS_ENABLED!=='true'||!process.env.RAZORPAY_KEY_ID||!process.env.RAZORPAY_KEY_SECRET)throw httpError(503,'Online payment is not configured. Contact sales for an offline invoice.');}
@@ -34,20 +36,21 @@ function auditOrder(db,actor,event,id,extra={}){audit(db,actor?.id||null,event,'
 function publicQuote(q){return {...q,configuration:JSON.parse(q.configuration),estimate:JSON.parse(q.estimate)};}
 function respondStatic(req,res,path){const routes={'/':'index.html','/index.html':'index.html','/styles.css':'styles.css','/app.js':'app.js','/ux.css':'ux.css','/assets/brand.svg':'assets/brand.svg'};const asset=routes[path];if(!asset)return false;const file=resolve(WEB_ROOT,asset);if(!file.startsWith(WEB_ROOT)||!existsSync(file))return false;const types={'.html':'text/html; charset=utf-8','.css':'text/css; charset=utf-8','.js':'text/javascript; charset=utf-8','.svg':'image/svg+xml'};res.writeHead(200,{'Content-Type':types[extname(file)]||'application/octet-stream','Cache-Control':PROD?'public, max-age=300':'no-store','X-Content-Type-Options':'nosniff','Content-Security-Policy':"default-src 'self'; img-src 'self' data:; style-src 'self'; script-src 'self'; connect-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'none'"});res.end(readFileSync(file));return true;}
 export function createServer(db=migrate(openDb())){
+ const rate=new Map();
  async function handler(req,res){let pathname;try{
   const url=new URL(req.url||'/',`http://${req.headers.host||'localhost'}`);pathname=url.pathname;
   if(req.method==='GET'&&respondStatic(req,res,pathname))return;
   if(pathname==='/api/v1/health')return safeJson(res,200,{status:'ok',application:'DesignPro',paymentsEnabled:process.env.PAYMENTS_ENABLED==='true',uatDemoEnabled:!PROD&&process.env.UAT_DEMO_ENABLED==='true'});
   if(pathname==='/api/v1/catalog'&&req.method==='GET')return safeJson(res,200,{categories:CATEGORIES,materials:MATERIALS,finishes:FINISHES,kitItems:KIT_ITEMS});
-  if(pathname==='/api/v1/estimate'&&req.method==='POST'){rateLimit(req,'estimate',60);return safeJson(res,200,estimate(await body(req)));}
+  if(pathname==='/api/v1/estimate'&&req.method==='POST'){rateLimit(rate,req,'estimate',60);return safeJson(res,200,estimate(await body(req)));}
   if(pathname==='/api/v1/auth/register'&&req.method==='POST'){
-   rateLimit(req,'register',6);const x=await body(req);
+   rateLimit(rate,req,'register',6);const x=await body(req);
    if(getUser(db,x.email))throw httpError(409,'Account already exists');
    const user=createUser(db,{email:x.email,displayName:x.displayName,password:x.password});
    return safeJson(res,201,{user,message:'Account created. Email verification is required before live checkout.'});
   }
   if(pathname==='/api/v1/auth/login'&&req.method==='POST'){
-   rateLimit(req,'login',10);const x=await body(req);const user=getUser(db,x.email);
+   rateLimit(rate,req,'login',10);const x=await body(req);const user=getUser(db,x.email);
    if(!user||user.status!=='active'||!verifyPassword(x.password,user.password_hash))throw httpError(401,'Invalid email or password');
    const s=makeSession(db,user);res.setHeader('Set-Cookie',sessionCookie(s.token,{secure:PROD}));
    audit(db,user.id,'auth.login','user',user.id);return safeJson(res,200,{user:s.profile,csrf:s.csrf});
@@ -83,8 +86,10 @@ export function createServer(db=migrate(openDb())){
    const actor=requireActor(db,req,'orders','create');const x=await body(req),q=getQuote(db,x.quoteId);
    if(q.user_id!==actor.id)throw httpError(403,'Not your quotation');if(q.status!=='accepted'||q.expires_at<now())throw httpError(409,'Accept a current firm quote first');
    if(PROD&&!actor.email_verified)throw httpError(403,'Verified email required before placing live orders');
-   if(!addressText(x.address)||addressText(x.address).length<10)throw httpError(400,'Delivery address required');
-   const id=newId('ord'),t=now();runAtomic(db,()=>{db.prepare('INSERT INTO orders (id,quote_id,user_id,status,total_minor,address,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?)').run(id,q.id,actor.id,'pending_payment',q.firm_total_minor,addressText(x.address),t,t);auditOrder(db,actor,'order.created',id,{quoteId:q.id,totalMinor:q.firm_total_minor});});return safeJson(res,201,{id,status:'pending_payment',totalMinor:q.firm_total_minor});
+   const configuration=JSON.parse(q.configuration);let destinations;try{destinations=normalizeDestinations({destinations:x.destinations,address:x.address,expectedCount:configuration.destinationCount??1,quantity:configuration.quantity});}catch(e){throw httpError(400,e.message);}
+   const id=newId('ord'),t=now();runAtomic(db,()=>{db.prepare('INSERT INTO orders (id,quote_id,user_id,status,total_minor,address,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?)').run(id,q.id,actor.id,'pending_payment',q.firm_total_minor,destinations.length===1?destinations[0].address:'Multiple delivery locations',t,t);
+    const add=db.prepare('INSERT INTO order_destinations (id,order_id,recipient,address,phone,quantity,created_at) VALUES (?,?,?,?,?,?,?)');for(const destination of destinations)add.run(newId('dst'),id,destination.recipient,destination.address,destination.phone,destination.quantity,t);
+    auditOrder(db,actor,'order.created',id,{quoteId:q.id,totalMinor:q.firm_total_minor,deliveryCount:destinations.length});});return safeJson(res,201,{id,status:'pending_payment',totalMinor:q.firm_total_minor,deliveryCount:destinations.length});
   }
   if(pathname==='/api/v1/orders'&&req.method==='GET'){
    const actor=requireActor(db,req,'orders','view',{csrf:false});const rows=actor.role==='CUSTOMER'?list(db,'SELECT * FROM orders WHERE user_id=? ORDER BY created_at DESC',actor.id):list(db,'SELECT * FROM orders ORDER BY created_at DESC LIMIT 200');return safeJson(res,200,{orders:rows});
@@ -92,7 +97,7 @@ export function createServer(db=migrate(openDb())){
   const details=pathname.match(/^\/api\/v1\/orders\/([^/]+)$/);
   if(details&&req.method==='GET'){
    const actor=requireActor(db,req,'orders','view',{csrf:false}),order=getOrder(db,details[1]);if(!ownOrStaff(actor,order.user_id))throw httpError(403,'Not your order');
-   return safeJson(res,200,{order,proofs:list(db,'SELECT * FROM proofs WHERE order_id=? ORDER BY version DESC',order.id),payments:list(db,'SELECT id,amount_minor,status,created_at FROM payments WHERE order_id=?',order.id),shipments:list(db,'SELECT * FROM shipments WHERE order_id=?',order.id)});
+   return safeJson(res,200,{order,proofs:list(db,'SELECT * FROM proofs WHERE order_id=? ORDER BY version DESC',order.id),payments:list(db,'SELECT id,amount_minor,status,created_at FROM payments WHERE order_id=?',order.id),shipments:shipmentsFor(db,order.id),destinations:destinationsFor(db,order.id),qualityChecks:list(db,'SELECT id,result,sample_qty,notes,created_at FROM qc_inspections WHERE order_id=? ORDER BY created_at DESC',order.id)});
   }
   if(pathname==='/api/v1/proofs'&&req.method==='POST'){
    const actor=requireStaff(db,req,'proofs','create');const x=await body(req),order=getOrder(db,x.orderId);
@@ -109,9 +114,24 @@ export function createServer(db=migrate(openDb())){
   const orderTransition=pathname.match(/^\/api\/v1\/orders\/([^/]+)\/transition$/);
   if(orderTransition&&req.method==='POST'){
    const actor=requireStaff(db,req,'orders','edit'),order=getOrder(db,orderTransition[1]);const x=await body(req);
+   const ev=changeState('order',order.status,x.to,actor,String(x.reason||''));
    if(x.to==='pending_proof'){const captured=db.prepare("SELECT COALESCE(SUM(amount_minor),0) as total FROM payments WHERE order_id=? AND status='captured'").get(order.id).total;if(captured<Math.ceil(order.total_minor*.5))throw httpError(409,'At least 50% verified advance is required before proofing; credit terms require a separate approved workflow');}
    if(x.to==='production_ready'){const p=db.prepare('SELECT status FROM proofs WHERE id=? AND order_id=?').get(order.proof_id,order.id);if(p?.status!=='approved')throw httpError(409,'Latest production proof must be approved');}
-   const ev=changeState('order',order.status,x.to,actor,String(x.reason||''));runAtomic(db,()=>{db.prepare('UPDATE orders SET status=?,updated_at=? WHERE id=?').run(x.to,now(),order.id);auditOrder(db,actor,'order.transition',order.id,ev);});return safeJson(res,200,{id:order.id,status:x.to,event:ev});
+   if(x.to==='quality_check'){
+    const jobs=list(db,'SELECT status FROM work_orders WHERE order_id=?',order.id);
+    if(!jobs.length||jobs.some(j=>j.status!=='completed'))throw httpError(409,'Finish every production job card before quality inspection');
+   }
+   if(x.to==='ready_to_ship'){
+    const qc=db.prepare('SELECT result FROM qc_inspections WHERE order_id=? ORDER BY created_at DESC,id DESC LIMIT 1').get(order.id);
+    if(qc?.result!=='passed')throw httpError(409,'A passed quality inspection is required before dispatch');
+   }
+   if(['shipped','delivered'].includes(x.to)&&!shipmentCoverage({destinations:destinationsFor(db,order.id),shipments:shipmentsFor(db,order.id),delivered:x.to==='delivered'}))throw httpError(409,x.to==='delivered'?'Every delivery destination must be marked delivered with its full quantity':'Record dispatched quantities for all delivery destinations first');
+   if(x.to==='cancelled'){
+    const ledger=db.prepare("SELECT COALESCE(SUM(amount_minor),0) AS captured FROM payments WHERE order_id=? AND status='captured'").get(order.id);
+    const refunded=db.prepare("SELECT COALESCE(SUM(requested_minor),0) AS settled FROM refunds WHERE order_id=? AND status='succeeded'").get(order.id);
+    if(ledger.captured>refunded.settled)throw httpError(409,'Finance must settle all captured payment obligations before cancellation, including approved policy deductions.');
+   }
+   runAtomic(db,()=>{db.prepare('UPDATE orders SET status=?,updated_at=? WHERE id=?').run(x.to,now(),order.id);auditOrder(db,actor,'order.transition',order.id,ev);});return safeJson(res,200,{id:order.id,status:x.to,event:ev});
   }
   // UAT-only checkout event, never a production or customer-facing payment bypass.
   // This simulates a captured advance so staff can test proof, manufacturing and dispatch.
@@ -142,13 +162,31 @@ export function createServer(db=migrate(openDb())){
    const actor=requireActor(db,req,'payments','create'),x=await body(req);const p=db.prepare('SELECT * FROM payments WHERE id=?').get(x.intentId);if(!p)throw httpError(404,'Payment intent not found');const order=getOrder(db,p.order_id);if(order.user_id!==actor.id)throw httpError(403,'Not your order');
    if(!verifyCheckoutSignature({orderId:p.provider_order_id,paymentId:x.providerPaymentId,signature:x.signature,secret:process.env.RAZORPAY_KEY_SECRET||''}))throw httpError(400,'Invalid payment signature');
    const fetched=await razorpay('/payments/'+encodeURIComponent(x.providerPaymentId));if(fetched.status!=='captured'||fetched.order_id!==p.provider_order_id||fetched.amount!==p.amount_minor||fetched.currency!=='INR')throw httpError(409,'Payment not captured or amount mismatch');
-   runAtomic(db,()=>{db.prepare("UPDATE payments SET status='captured',provider_payment_id=?,updated_at=? WHERE id=? AND status='initiated'").run(fetched.id,now(),p.id);auditOrder(db,actor,'payment.captured',order.id,{paymentId:p.id,amount:p.amount_minor});});return safeJson(res,200,{status:'captured'});
+   runAtomic(db,()=>{const changed=db.prepare("UPDATE payments SET status='captured',provider_payment_id=?,updated_at=? WHERE id=? AND status='initiated'").run(fetched.id,now(),p.id);if(changed.changes!==1)throw httpError(409,'Payment is already settled or this intent is no longer active');auditOrder(db,actor,'payment.captured',order.id,{paymentId:p.id,amount:p.amount_minor});});return safeJson(res,200,{status:'captured'});
   }
   if(pathname==='/api/v1/payments/webhook'&&req.method==='POST'){
    ensurePayments();const raw=await rawBody(req);if(!verifyWebhook(raw,req.headers['x-razorpay-signature'],process.env.RAZORPAY_WEBHOOK_SECRET||''))throw httpError(401,'Invalid webhook signature');
    const parsed=JSON.parse(raw.toString()),eventId=String(req.headers['x-razorpay-event-id']||'');if(!eventId)throw httpError(400,'Missing event ID');
    runAtomic(db,()=>{const exists=db.prepare('SELECT event_id FROM webhooks WHERE event_id=?').get(eventId);if(exists)return;db.prepare('INSERT INTO webhooks VALUES (?,?,?,?)').run(eventId,'razorpay',createHash('sha256').update(raw).digest('hex'),now());
-    const payment=parsed.payload?.payment?.entity;if(parsed.event==='payment.captured'&&payment){const p=db.prepare('SELECT * FROM payments WHERE provider_order_id=?').get(payment.order_id);if(p&&p.amount_minor===payment.amount&&payment.currency==='INR'){db.prepare("UPDATE payments SET status='captured',provider_payment_id=?,updated_at=? WHERE id=? AND status!='captured'").run(payment.id,now(),p.id);auditOrder(db,null,'payment.captured.webhook',p.order_id,{paymentId:p.id});}}});return safeJson(res,200,{ok:true});
+    const payment=parsed.payload?.payment?.entity;
+    if(parsed.event==='payment.captured'&&payment){const p=db.prepare('SELECT * FROM payments WHERE provider_order_id=?').get(payment.order_id);
+     if(p&&p.provider==='razorpay'&&p.status==='initiated'&&p.amount_minor===payment.amount&&payment.currency==='INR'&&payment.status==='captured'){
+      const updated=db.prepare("UPDATE payments SET status='captured',provider_payment_id=?,updated_at=? WHERE id=? AND status='initiated'").run(payment.id,now(),p.id);
+      if(updated.changes) auditOrder(db,null,'payment.captured.webhook',p.order_id,{paymentId:p.id});
+     }
+    }
+    if(['refund.processed','refund.failed'].includes(parsed.event)){
+     const entity=parsed.payload?.refund?.entity;
+     if(entity?.id&&entity.currency==='INR'){
+      const refund=db.prepare('SELECT refunds.*,payments.provider_payment_id,payments.provider AS gateway FROM refunds JOIN payments ON payments.id=refunds.payment_id WHERE refunds.provider_refund_id=?').get(entity.id);
+      if(refund&&refund.status==='submitted'&&refund.gateway==='razorpay'&&entity.payment_id===refund.provider_payment_id&&entity.amount===refund.refund_minor){
+       const state=parsed.event==='refund.processed'?'succeeded':'failed';
+       db.prepare("UPDATE refunds SET status=?,updated_at=? WHERE id=? AND status='submitted'").run(state,now(),refund.id);
+       auditOrder(db,null,'refund.'+state+'.webhook',refund.order_id,{refundId:refund.id});
+      }
+     }
+    }
+   });return safeJson(res,200,{ok:true});
   }
   if(pathname==='/api/v1/refunds'&&req.method==='POST'){
    const actor=requireActor(db,req,'refunds','create'),x=await body(req);const p=db.prepare('SELECT * FROM payments WHERE id=?').get(x.paymentId);if(!p||p.status!=='captured')throw httpError(404,'Captured payment not found');const order=getOrder(db,p.order_id);if(actor.role==='CUSTOMER'&&order.user_id!==actor.id)throw httpError(403,'Not your payment');
@@ -162,7 +200,11 @@ export function createServer(db=migrate(openDb())){
   const refundApprove=pathname.match(/^\/api\/v1\/refunds\/([^/]+)\/(approve|reject)$/);
   if(refundApprove&&req.method==='POST'){
    const actor=requireStaff(db,req,'refunds','approve'),r=db.prepare('SELECT * FROM refunds WHERE id=?').get(refundApprove[1]);if(!r)throw httpError(404,'Refund not found');if(r.requested_by===actor.id)throw httpError(403,'Maker and approver must be different users');if(r.status!=='requested')throw httpError(409,'Refund not pending');
-   const state=refundApprove[2]==='approve'?'approved':'rejected';db.prepare('UPDATE refunds SET status=?,approved_by=?,updated_at=? WHERE id=?').run(state,actor.id,now(),r.id);auditOrder(db,actor,'refund.'+state,r.order_id,{refundId:r.id});return safeJson(res,200,{id:r.id,status:state});
+   const state=refundApprove[2]==='approve'?'approved':'rejected',x=await body(req);
+   const fee=state==='approved'?moneyInt(x.feeMinor??r.fee_minor,'refund deduction'):r.fee_minor;
+   if(fee>r.requested_minor)throw httpError(400,'Refund deduction cannot exceed the requested amount');
+   const note=String(x.reviewNotes||'').trim();if(fee>0&&note.length<10)throw httpError(400,'A meaningful deduction explanation is required');
+   runAtomic(db,()=>{db.prepare('UPDATE refunds SET status=?,approved_by=?,fee_minor=?,refund_minor=?,updated_at=? WHERE id=?').run(state,actor.id,fee,r.requested_minor-fee,now(),r.id);auditOrder(db,actor,'refund.'+state,r.order_id,{refundId:r.id,feeMinor:fee,notes:note.slice(0,900)});});return safeJson(res,200,{id:r.id,status:state,refundMinor:r.requested_minor-fee,feeMinor:fee});
   }
   const refundSubmit=pathname.match(/^\/api\/v1\/refunds\/([^/]+)\/submit$/);
   if(refundSubmit&&req.method==='POST'){
@@ -170,10 +212,23 @@ export function createServer(db=migrate(openDb())){
    const p=db.prepare('SELECT * FROM payments WHERE id=?').get(r.payment_id);if(r.refund_minor===0)throw httpError(409,'Zero-amount refund needs finance resolution, not a payment gateway call');
    const output=await razorpay('/payments/'+encodeURIComponent(p.provider_payment_id)+'/refund',{method:'POST',data:{amount:r.refund_minor,notes:{designpro_refund:r.id}}});db.prepare('UPDATE refunds SET status=?,provider_refund_id=?,updated_at=? WHERE id=?').run('submitted',output.id,now(),r.id);auditOrder(db,actor,'refund.submitted',r.order_id,{refundId:r.id});return safeJson(res,200,{id:r.id,status:'submitted',providerRefundId:output.id});
   }
+  // Controlled refund settlement for UAT simulated advances. No external payout is issued.
+  if(pathname==='/api/v1/admin/uat/settle-refund'&&req.method==='POST'){
+   if(PROD||process.env.UAT_DEMO_ENABLED!=='true')throw httpError(404,'Not found');
+   const actor=requireStaff(db,req,'refunds','approve');if(actor.role!=='SUPER_ADMIN')throw httpError(403,'Only Super Admin may settle a simulated UAT refund');
+   const x=await body(req),refund=db.prepare('SELECT refunds.*,payments.provider FROM refunds JOIN payments ON payments.id=refunds.payment_id WHERE refunds.id=?').get(x.refundId);
+   if(!refund)throw httpError(404,'Refund request not found');
+   if(refund.provider!=='uat_simulator'||refund.status!=='approved'||!refund.approved_by||refund.approved_by===refund.requested_by||refund.requested_by===actor.id||refund.refund_minor<=0)throw httpError(409,'An independently approved simulated refund is required');
+   runAtomic(db,()=>{db.prepare("UPDATE refunds SET status='succeeded',updated_at=? WHERE id=? AND status='approved'").run(now(),refund.id);auditOrder(db,actor,'uat.refund.settled',refund.order_id,{refundId:refund.id,amountMinor:refund.refund_minor,simulated:true});});
+   return safeJson(res,200,{id:refund.id,status:'succeeded',simulated:true,message:'Simulated UAT refund settled. No money was transferred.'});
+  }
   if(pathname==='/api/v1/shipments'&&req.method==='POST'){
    const actor=requireStaff(db,req,'shipping','create'),x=await body(req),order=getOrder(db,x.orderId);if(!['ready_to_ship','shipped','delivery_exception'].includes(order.status))throw httpError(409,'Order is not ready for shipping');
    if(!String(x.carrier||'').trim()||!String(x.trackingNumber||'').trim())throw httpError(400,'Carrier and tracking number required');
-   const id=newId('shp');db.prepare('INSERT INTO shipments VALUES (?,?,?,?,?,?,?,?)').run(id,order.id,String(x.carrier).slice(0,100),String(x.trackingNumber).slice(0,100),'prepared',addressText(x.address)||order.address,now(),now());auditOrder(db,actor,'shipment.created',order.id,{shipmentId:id});return safeJson(res,201,{id,status:'prepared'});
+   const destinations=destinationsFor(db,order.id),destination=destinations.find(d=>d.id===(x.destinationId||destinations.length===1&&destinations[0].id));if(!destination)throw httpError(400,'Select a valid delivery destination for this order');
+   const allocated=db.prepare("SELECT COALESCE(SUM(quantity),0) AS n FROM shipments WHERE destination_id=? AND status!='cancelled'").get(destination.id).n;
+   const quantity=moneyInt(x.quantity??destination.quantity-allocated,'shipment quantity');if(quantity<1||allocated+quantity>destination.quantity)throw httpError(409,'Shipment quantity exceeds the remaining destination allocation');
+   const id=newId('shp');runAtomic(db,()=>{db.prepare('INSERT INTO shipments (id,order_id,carrier,tracking_number,status,address,created_at,updated_at,destination_id,quantity) VALUES (?,?,?,?,?,?,?,?,?,?)').run(id,order.id,String(x.carrier).slice(0,100),String(x.trackingNumber).slice(0,100),'prepared',destination.address,now(),now(),destination.id,quantity);auditOrder(db,actor,'shipment.created',order.id,{shipmentId:id,destinationId:destination.id,quantity});});return safeJson(res,201,{id,status:'prepared',destinationId:destination.id,quantity});
   }
   const shipmentUpdate=pathname.match(/^\/api\/v1\/shipments\/([^/]+)\/events$/);
   if(shipmentUpdate&&req.method==='POST'){
@@ -222,6 +277,57 @@ export function createServer(db=migrate(openDb())){
    const actor=requireStaff(db,req,'production','create'),x=await body(req),order=getOrder(db,x.orderId);if(!['production_ready','in_production'].includes(order.status))throw httpError(409,'Production release requires approved proof and ready order');
    const p=db.prepare('SELECT status FROM proofs WHERE id=?').get(order.proof_id);if(p?.status!=='approved')throw httpError(409,'Approved latest proof required');
    const q=getQuote(db,order.quote_id),quantity=JSON.parse(q.configuration).quantity,id=newId('job');db.prepare('INSERT INTO work_orders VALUES (?,?,?,?,?,?,?)').run(id,order.id,String(x.machine||'Unassigned').slice(0,80),'planned',quantity,String(x.notes||'').slice(0,1000),now());auditOrder(db,actor,'work_order.created',order.id,{workOrderId:id});return safeJson(res,201,{id,status:'planned',quantity});
+  }
+
+  const workStage=pathname.match(/^\/api\/v1\/admin\/work-orders\/([^/]+)\/stage$/);
+  if(workStage&&req.method==='POST'){
+   const actor=requireStaff(db,req,'production','edit'),job=db.prepare('SELECT * FROM work_orders WHERE id=?').get(workStage[1]);if(!job)throw httpError(404,'Job card not found');const order=getOrder(db,job.order_id),x=await body(req);
+   const allowed={planned:['scheduled','blocked'],scheduled:['in_progress','blocked'],in_progress:['completed','blocked'],blocked:['scheduled','in_progress']};
+   if(!allowed[job.status]?.includes(x.to))throw httpError(409,'Invalid job card stage transition');
+   if(!['production_ready','in_production'].includes(order.status))throw httpError(409,'Job card cannot be updated outside active production');
+   if(String(x.reason||'').trim().length<8)throw httpError(400,'Enter a reason of at least 8 characters');
+   runAtomic(db,()=>{db.prepare('UPDATE work_orders SET status=?,notes=? WHERE id=?').run(x.to,String(x.reason).trim().slice(0,1000),job.id);auditOrder(db,actor,'work_order.stage',order.id,{jobId:job.id,from:job.status,to:x.to});});return safeJson(res,200,{id:job.id,status:x.to});
+  }
+  if(pathname==='/api/v1/admin/quality-inspections'&&req.method==='POST'){
+   const actor=requireStaff(db,req,'production','approve'),x=await body(req),order=getOrder(db,x.orderId);if(order.status!=='quality_check')throw httpError(409,'Order must be in quality check stage');
+   if(!['passed','failed'].includes(x.result))throw httpError(400,'Inspection result must be passed or failed');
+   const sample=moneyInt(x.sampleQty,'inspection sample count'),quantity=JSON.parse(getQuote(db,order.quote_id).configuration).quantity;
+   if(sample<1||sample>quantity||String(x.notes||'').trim().length<10)throw httpError(400,'Valid sample size and inspection notes (10+ characters) required');
+   const id=newId('qc');runAtomic(db,()=>{db.prepare('INSERT INTO qc_inspections VALUES (?,?,?,?,?,?,?)').run(id,order.id,actor.id,x.result,sample,String(x.notes).trim().slice(0,1200),now());auditOrder(db,actor,'quality.inspected',order.id,{inspectionId:id,result:x.result,sampleQty:sample});});return safeJson(res,201,{id,result:x.result});
+  }
+  if(pathname==='/api/v1/admin/quality-inspections'&&req.method==='GET'){
+   requireStaff(db,req,'production','view');return safeJson(res,200,{inspections:list(db,'SELECT id,order_id,result,sample_qty,notes,created_at FROM qc_inspections ORDER BY created_at DESC LIMIT 100')});
+  }
+  const timeline=pathname.match(/^\/api\/v1\/orders\/([^/]+)\/timeline$/);
+  if(timeline&&req.method==='GET'){
+   const actor=requireActor(db,req,'orders','view',{csrf:false}),order=getOrder(db,timeline[1]);if(!ownOrStaff(actor,order.user_id))throw httpError(403,'Not your order');
+   const changes=list(db,"SELECT event_type AS event,at FROM audit_events WHERE entity_type='order' AND entity_id=?",order.id);
+   const shipping=list(db,'SELECT shipment_events.status AS event,shipment_events.at AS at,shipment_events.location AS location FROM shipment_events JOIN shipments ON shipments.id=shipment_events.shipment_id WHERE shipments.order_id=?',order.id);
+   const proofs=list(db,'SELECT status AS event,created_at AS at FROM proofs WHERE order_id=?',order.id);
+   return safeJson(res,200,{orderId:order.id,events:[...changes,...shipping,...proofs].sort((a,b)=>b.at.localeCompare(a.at)).slice(0,150)});
+  }
+  if(pathname==='/api/v1/tickets'&&req.method==='POST'){
+   const actor=requireActor(db,req,'tickets','create'),x=await body(req),order=getOrder(db,x.orderId);if(!ownOrStaff(actor,order.user_id))throw httpError(403,'Not your order');
+   const subject=String(x.subject||'').trim(),message=String(x.message||'').trim(),category=String(x.category||'').trim();
+   if(subject.length<5||subject.length>160||message.length<10||message.length>3000||!['order_change','artwork','quality','delivery','payment','refund','other'].includes(category))throw httpError(400,'Choose an issue category and provide a meaningful subject and details');
+   const id=newId('tkt'),t=now();runAtomic(db,()=>{db.prepare('INSERT INTO tickets VALUES (?,?,?,?,?,?,?,?)').run(id,order.id,actor.id,category,'open',subject,t,t);db.prepare('INSERT INTO ticket_messages VALUES (?,?,?,?,?)').run(newId('msg'),id,actor.id,message,t);auditOrder(db,actor,'ticket.created',order.id,{ticketId:id,category});});return safeJson(res,201,{id,status:'open',message:'Request received. Our team will review it.'});
+  }
+  if(pathname==='/api/v1/tickets'&&req.method==='GET'){
+   const actor=requireActor(db,req,'tickets','view',{csrf:false});const rows=actor.role==='CUSTOMER'?list(db,'SELECT tickets.* FROM tickets JOIN orders ON orders.id=tickets.order_id WHERE orders.user_id=? ORDER BY tickets.updated_at DESC LIMIT 100',actor.id):list(db,'SELECT * FROM tickets ORDER BY updated_at DESC LIMIT 200');return safeJson(res,200,{tickets:rows});
+  }
+  const ticket=pathname.match(/^\/api\/v1\/tickets\/([^/]+)$/);
+  if(ticket&&req.method==='GET'){
+   const actor=requireActor(db,req,'tickets','view',{csrf:false}),item=db.prepare('SELECT * FROM tickets WHERE id=?').get(ticket[1]);if(!item)throw httpError(404,'Request not found');const order=getOrder(db,item.order_id);if(!ownOrStaff(actor,order.user_id,'tickets'))throw httpError(403,'Not your request');return safeJson(res,200,{ticket:item,messages:list(db,'SELECT id,author_id,message,created_at FROM ticket_messages WHERE ticket_id=? ORDER BY created_at,id',item.id)});
+  }
+  const reply=pathname.match(/^\/api\/v1\/tickets\/([^/]+)\/reply$/);
+  if(reply&&req.method==='POST'){
+   const actor=requireActor(db,req,'tickets','create'),item=db.prepare('SELECT * FROM tickets WHERE id=?').get(reply[1]);if(!item)throw httpError(404,'Request not found');const order=getOrder(db,item.order_id);if(!ownOrStaff(actor,order.user_id,'tickets'))throw httpError(403,'Not your request');if(item.status==='closed')throw httpError(409,'This request is closed. Contact support to reopen it.');const x=await body(req),message=String(x.message||'').trim();if(message.length<3||message.length>3000)throw httpError(400,'Reply must contain 3–3000 characters');
+   runAtomic(db,()=>{db.prepare('INSERT INTO ticket_messages VALUES (?,?,?,?,?)').run(newId('msg'),item.id,actor.id,message,now());db.prepare('UPDATE tickets SET updated_at=? WHERE id=?').run(now(),item.id);auditOrder(db,actor,'ticket.replied',order.id,{ticketId:item.id});});return safeJson(res,201,{message:'Reply recorded.'});
+  }
+  const ticketStatus=pathname.match(/^\/api\/v1\/tickets\/([^/]+)\/status$/);
+  if(ticketStatus&&req.method==='POST'){
+   const actor=requireStaff(db,req,'tickets','edit'),item=db.prepare('SELECT * FROM tickets WHERE id=?').get(ticketStatus[1]);if(!item)throw httpError(404,'Request not found');const x=await body(req),allowed={open:['in_review','resolved'],in_review:['waiting_customer','resolved'],waiting_customer:['in_review','resolved'],resolved:['closed','in_review'],closed:[]};if(!allowed[item.status]?.includes(x.status))throw httpError(409,'Invalid request status transition');
+   runAtomic(db,()=>{db.prepare('UPDATE tickets SET status=?,updated_at=? WHERE id=?').run(x.status,now(),item.id);auditOrder(db,actor,'ticket.status_changed',item.order_id,{ticketId:item.id,from:item.status,to:x.status});});return safeJson(res,200,{id:item.id,status:x.status});
   }
   if(pathname==='/api/v1/admin/audit'&&req.method==='GET'){
    requireStaff(db,req,'audit','view');return safeJson(res,200,{events:list(db,'SELECT * FROM audit_events ORDER BY at DESC LIMIT 200')});

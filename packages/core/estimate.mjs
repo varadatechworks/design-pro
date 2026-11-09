@@ -39,7 +39,9 @@ export function estimate(input,rateCard={}){
  const cartons=Math.ceil(quantity/unitsPerCarton);
  const perPieceKg=Math.max(0.05,(length*width*height)/5_000_000);
  const chargeableKg=Math.ceil(Math.max(perPieceKg*quantity, (length*width*height)/(5_000_000)*quantity)*100)/100;
- const shipping = input.shipping === false?0:sum([cartons*3500,Math.ceil(chargeableKg)*1800,(integer(input.destinationCount??1,1,1000,'Destination count')-1)*9000]);
+ const destinationCount=integer(input.destinationCount??1,1,1000,'Destination count');
+ if(destinationCount>quantity)throw new Error('Destination count cannot exceed order quantity');
+ const shipping = input.shipping === false?0:sum([cartons*3500,Math.ceil(chargeableKg)*1800,(destinationCount-1)*9000]);
  const costBase=sum([rawMaterial,scrap,setup,assembly,rush,shipping]);
  const targetMarginBps=integer(rateCard.marginBps??2500,100,6500,'Margin (basis points)');
  const selling=Number((BigInt(costBase)*10000n+BigInt(10000-targetMarginBps-1))/BigInt(10000-targetMarginBps));
@@ -60,7 +62,7 @@ export function estimate(input,rateCard={}){
  if(requiresReview)warnings.push('A technical reviewer must confirm material fit, production method and final price.');
  warnings.push('Indicative estimate using sample factory rates. Preview is not a production proof.');
  const breakdown=[line('materials','Material, print and contents',rawMaterial),line('spoilage','Production wastage allowance',scrap),line('setup','Prepress, tooling and setup',setup),line('assembly','Assembly and kitting',assembly),line('rush','Priority production',rush),line('shipping','Indicative freight & handling',shipping)];
- const payload={categoryId:category.id,quantity,length,width,height,material,finish,printSides,designComplexity,destinationState,rush:Boolean(input.rush),shipping:input.shipping!==false,unitsPerCarton,destinationCount:integer(input.destinationCount??1,1,1000,'Destination count'),kitItems:selected,designNotes:String(input.designNotes||'').slice(0,1000)};
+ const payload={categoryId:category.id,quantity,length,width,height,material,finish,printSides,designComplexity,destinationState,rush:Boolean(input.rush),shipping:input.shipping!==false,unitsPerCarton,destinationCount,kitItems:selected,designNotes:String(input.designNotes||'').slice(0,1000)};
  return {config:payload,categoryName:category.name,kind:category.kind,currency:'INR',quantity,breakdown,costMinor:costBase,netMinor:taxable,taxMinor,totalMinor:sum([taxable,taxMinor]),unitInclTaxMinor:Math.round((taxable+taxMinor)/quantity),taxes,marginBps:targetMarginBps,chargeableKg,cartons,leadDays:category.days+(rush?-1:0),status:requiresReview?'technical_review':'indicative',confidence:requiresReview?'technical_review':'indicative',warnings,validUntil:new Date(Date.now()+7*86400000).toISOString()};
 }
 export const formatINR=minor=>new Intl.NumberFormat('en-IN',{style:'currency',currency:'INR',maximumFractionDigits:2}).format(minor/100);

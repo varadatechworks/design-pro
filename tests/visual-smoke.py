@@ -19,12 +19,16 @@ BASE_MOCK={
  '/api/v1/refunds':{'refunds':[]},
  '/api/v1/admin/inventory':{'inventory':[]},
  '/api/v1/admin/work-orders':{'workOrders':[]},
+ '/api/v1/admin/quality-inspections':{'inspections':[]},
+ '/api/v1/tickets':{'tickets':[{'id':'tkt_UAT_0001','order_id':'ord_UAT_SAMPLE_00001','subject':'Artwork correction required','category':'artwork','status':'open','updated_at':'2026-11-09T12:00:00.000Z'}]},
+ '/api/v1/tickets/tkt_UAT_0001':{'ticket':{'id':'tkt_UAT_0001','order_id':'ord_UAT_SAMPLE_00001','subject':'Artwork correction required','category':'artwork','status':'open'},'messages':[{'author_id':'u1','message':'Please update the logo before release','created_at':'2026-11-09T12:00:00.000Z'}]},
  '/api/v1/admin/audit':{'events':[]},
  '/api/v1/admin/users':{'users':[]},
  '/api/v1/admin/roles':{'defaultRoles':{},'customRoles':[]},
  '/api/v1/quotes':{'quotes':[{'id':'qte_UAT_SAMPLE_00001','status':'firm','estimate':{'categoryName':'Corporate Welcome Kits','totalMinor':160000},'configuration':{'quantity':20},'firm_total_minor':160000}]},
  '/api/v1/orders':{'orders':[{'id':'ord_UAT_SAMPLE_00001','quote_id':'qte_UAT_SAMPLE_00001','total_minor':160000,'status':'pending_payment','address':'42 Main Road, Bengaluru, Karnataka 560040'},{'id':'ord_UAT_SAMPLE_00002','quote_id':'qte_UAT_SAMPLE_00002','total_minor':150000,'status':'ready_to_ship','address':'42 Main Road, Bengaluru'}]},
- '/api/v1/orders/ord_UAT_SAMPLE_00001':{'order':{'id':'ord_UAT_SAMPLE_00001','quote_id':'qte_UAT_SAMPLE_00001','total_minor':160000,'status':'pending_payment','address':'42 Main Road, Bengaluru, Karnataka 560040'},'proofs':[],'payments':[],'shipments':[]}
+ '/api/v1/orders/ord_UAT_SAMPLE_00001':{'order':{'id':'ord_UAT_SAMPLE_00001','quote_id':'qte_UAT_SAMPLE_00001','total_minor':160000,'status':'pending_payment','address':'42 Main Road, Bengaluru, Karnataka 560040'},'proofs':[],'payments':[],'shipments':[],'destinations':[{'id':'dst_first','recipient':'Customer','address':'42 Main Road, Bengaluru, Karnataka 560040','quantity':20}],'qualityChecks':[]},
+ '/api/v1/orders/ord_UAT_SAMPLE_00002':{'order':{'id':'ord_UAT_SAMPLE_00002','quote_id':'qte_UAT_SAMPLE_00002','total_minor':150000,'status':'ready_to_ship','address':'42 Main Road, Bengaluru'},'proofs':[],'payments':[],'shipments':[],'destinations':[{'id':'dst_second','recipient':'Customer','address':'42 Main Road, Bengaluru, Karnataka 560040','quantity':20}],'qualityChecks':[]}
 }
 
 MOCK_SCRIPT=r'''window.__requests=[];
@@ -64,6 +68,7 @@ def run():
    pg.locator('[data-tab="shipping"]').click()
    pg.wait_for_timeout(40)
    assert pg.locator('#shipmentForm select[name=orderId] option').count()==1
+   assert pg.locator('#shipmentDestinationSelect option').count()==1
    pg.locator('[data-tab="orders"]').click()
    pg.locator('[data-detail="ord_UAT_SAMPLE_00001"]').click()
    pg.wait_for_timeout(40)
@@ -72,6 +77,10 @@ def run():
    assert pg.locator('#actionDialog').evaluate('(el)=>el.open')
    pg.locator('#actionDialogCancel').click()
    assert not pg.locator('#actionDialog').evaluate('(el)=>el.open')
+   pg.locator('[data-tab="tickets"]').click()
+   assert pg.locator('[data-ticket-detail="tkt_UAT_0001"]').count()==1
+   pg.locator('[data-ticket-detail="tkt_UAT_0001"]').click()
+   assert pg.locator('#ticketDetails .detail-panel').count()==1
    assert not errors,errors
    pg.close()
   customer,errors=page_setup(browser,{'width':390,'height':844},'CUSTOMER')

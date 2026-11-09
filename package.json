@@ -1,6 +1,11 @@
 {
-  "name": "designpro", "version": "0.2.0", "private": true, "type": "module",
-  "engines": {"node": ">=22"},
+  "name": "designpro",
+  "version": "0.3.0",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=22"
+  },
   "scripts": {
     "dev": "node apps/api/server.mjs",
     "start": "NODE_ENV=production node apps/api/server.mjs",

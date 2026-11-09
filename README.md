@@ -76,3 +76,15 @@ To exercise proof and dispatch flows without taking real money, set `UAT_DEMO_EN
 7. Customer requests a partial refund on the simulated payment; finance can review but **cannot issue real money without configuring and validating the live provider**.
 
 This is not full customer UAT sign-off: email verification/MFA, actual artwork upload and PDF proof, parametric 3D, real printer rate cards, multi-address shipping, invoices and reconciled payments/refunds, and verified courier integrations are still release blockers. Read `docs/UAT_AUDIT_2026-11-09.md` and `docs/RELEASE_GATES.md`.
+
+## Release v0.3.0 — UAT and operations hardening (2026-11-09)
+
+- Quote-specific delivery destination count; orders must allocate **all** quoted units across exactly the priced number of recipients. Dispatch supports per-destination allocations and split shipments.
+- Work cards now progress through planned → scheduled → in progress → completed, with blocked/recovery stages. Production cannot enter QC until all job cards are complete.
+- QC personnel record pass/fail, sample counts and inspection notes. Only a passing latest check allows release to shipping.
+- Order shipment/delivery transitions validate actual destination coverage and carrier-tracking stage. Financial cancellation is blocked until captured obligations are settled through approved refunds.
+- Customer care requests, replies, controlled status transitions and customer ownership checks; order-level timeline and fulfilment dashboard enhancements.
+- Independent finance deductions with a written reason, signed/duplicate-safe refund webhook updates and test-only refund settlement for the UAT simulator.
+- The test suite now covers 26 Node cases and the browser smoke harness at 375, 390, 768 and 1440 pixels. See [`docs/UAT_RELEASE_0.3.md`](docs/UAT_RELEASE_0.3.md) for exact evidence and remaining gates.
+
+**This release does not enable actual money transfers, production-grade 3D, secure artwork hosting, courier booking or verified factory pricing.** Those require merchant credentials, material/machine specifications and deployment controls before sign-off.

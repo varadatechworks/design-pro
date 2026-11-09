@@ -32,9 +32,20 @@ export function migrate(db){
  CREATE TABLE IF NOT EXISTS audit_events (id TEXT PRIMARY KEY,actor_id TEXT,event_type TEXT NOT NULL,entity_type TEXT NOT NULL,entity_id TEXT,detail TEXT,at TEXT NOT NULL);
  CREATE TABLE IF NOT EXISTS webhooks (event_id TEXT PRIMARY KEY,provider TEXT NOT NULL,payload_hash TEXT NOT NULL,created_at TEXT NOT NULL);
  CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY,value TEXT NOT NULL,updated_at TEXT NOT NULL);
+ CREATE TABLE IF NOT EXISTS order_destinations (id TEXT PRIMARY KEY,order_id TEXT NOT NULL REFERENCES orders(id),recipient TEXT NOT NULL,address TEXT NOT NULL,phone TEXT,quantity INTEGER NOT NULL CHECK(quantity>0),created_at TEXT NOT NULL);
+ CREATE TABLE IF NOT EXISTS qc_inspections (id TEXT PRIMARY KEY,order_id TEXT NOT NULL REFERENCES orders(id),actor_id TEXT NOT NULL REFERENCES users(id),result TEXT NOT NULL CHECK(result IN ('passed','failed')),sample_qty INTEGER NOT NULL CHECK(sample_qty>0),notes TEXT NOT NULL,created_at TEXT NOT NULL);
+ CREATE TABLE IF NOT EXISTS tickets (id TEXT PRIMARY KEY,order_id TEXT NOT NULL REFERENCES orders(id),created_by TEXT NOT NULL REFERENCES users(id),category TEXT NOT NULL,status TEXT NOT NULL DEFAULT 'open',subject TEXT NOT NULL,created_at TEXT NOT NULL,updated_at TEXT NOT NULL);
+ CREATE TABLE IF NOT EXISTS ticket_messages (id TEXT PRIMARY KEY,ticket_id TEXT NOT NULL REFERENCES tickets(id),author_id TEXT NOT NULL REFERENCES users(id),message TEXT NOT NULL,created_at TEXT NOT NULL);
+ CREATE INDEX IF NOT EXISTS idx_destination_order ON order_destinations(order_id);
+ CREATE INDEX IF NOT EXISTS idx_qc_order ON qc_inspections(order_id,created_at);
+ CREATE INDEX IF NOT EXISTS idx_tickets_order ON tickets(order_id,updated_at);
  CREATE INDEX IF NOT EXISTS idx_quote_user ON quotes(user_id,created_at);CREATE INDEX IF NOT EXISTS idx_orders_user ON orders(user_id,created_at);
  CREATE INDEX IF NOT EXISTS idx_payments_order ON payments(order_id);CREATE INDEX IF NOT EXISTS idx_refunds_payment ON refunds(payment_id);
  CREATE INDEX IF NOT EXISTS idx_audit_entity ON audit_events(entity_type,entity_id,at);`);
+ // Additive migration for existing UAT databases. No destructive table recreation.
+ const shipmentColumns=db.prepare('PRAGMA table_info(shipments)').all().map(x=>x.name);
+ if(!shipmentColumns.includes('destination_id'))db.exec('ALTER TABLE shipments ADD COLUMN destination_id TEXT REFERENCES order_destinations(id)');
+ if(!shipmentColumns.includes('quantity'))db.exec('ALTER TABLE shipments ADD COLUMN quantity INTEGER NOT NULL DEFAULT 1');
  return db;
 }
 export const now=()=>new Date().toISOString();

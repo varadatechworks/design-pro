@@ -84,19 +84,37 @@ test('UAT demo payment is permission-gated; proof, production, shipping and refu
   await checked(base,`/orders/${orderId}/transition`,owner,200,{to:'production_ready',reason:'Customer approved proof'});
   assert.equal((await req(base,`/orders/${orderId}/transition`,{method:'POST',session:owner,body:{to:'shipped'}})).status,400);
   const job=await checked(base,'/admin/work-orders',owner,201,{orderId,machine:'UV Printer'});assert.equal(job.status,'planned');
-  for(const to of ['in_production','quality_check','ready_to_ship'])await checked(base,`/orders/${orderId}/transition`,owner,200,{to,reason:'UAT progression'});
+  await checked(base,`/orders/${orderId}/transition`,owner,200,{to:'in_production',reason:'UAT production started'});
+  assert.equal((await req(base,`/orders/${orderId}/transition`,{method:'POST',session:owner,body:{to:'quality_check',reason:'Too early'}})).status,409);
+  for(const to of ['scheduled','in_progress','completed'])await checked(base,`/admin/work-orders/${job.id}/stage`,owner,200,{to,reason:'Manufacturing milestone verified'});
+  await checked(base,`/orders/${orderId}/transition`,owner,200,{to:'quality_check',reason:'Manufacturing complete'});
+  assert.equal((await req(base,`/orders/${orderId}/transition`,{method:'POST',session:owner,body:{to:'ready_to_ship',reason:'No QC yet'}})).status,409);
+  await checked(base,'/admin/quality-inspections',owner,201,{orderId,result:'failed',sampleQty:3,notes:'Defect in varnish alignment found'});
+  assert.equal((await req(base,`/orders/${orderId}/transition`,{method:'POST',session:owner,body:{to:'ready_to_ship',reason:'QC failed'}})).status,409);
+  await checked(base,'/admin/quality-inspections',owner,201,{orderId,result:'passed',sampleQty:5,notes:'Finishing, sizing, print and assembly approved'});
+  await checked(base,`/orders/${orderId}/transition`,owner,200,{to:'ready_to_ship',reason:'Latest QC passed'});
+  assert.equal((await req(base,`/orders/${orderId}/transition`,{method:'POST',session:owner,body:{to:'shipped',reason:'No pickup'}})).status,409);
   const ship=await checked(base,'/shipments',owner,201,{orderId,carrier:'Manual UAT Courier',trackingNumber:'DP-TEST-000123'});
   assert.equal((await req(base,`/shipments/${ship.id}/track`,{session:outsider})).status,403);
   for(const status of ['labelled','collected','in_transit','delivered'])await checked(base,`/shipments/${ship.id}/events`,owner,200,{status,location:'Bengaluru',notes:'UAT tracking event'});
   const tracked=await req(base,`/shipments/${ship.id}/track`,{session:buyer});assert.equal(tracked.status,200);assert.equal(tracked.json.events.length,4);
+  assert.equal((await req(base,`/orders/${orderId}/timeline`,{session:outsider})).status,403);
+  const timeline=await req(base,`/orders/${orderId}/timeline`,{session:buyer});assert.equal(timeline.status,200);assert.ok(timeline.json.events.length>=5);
   for(const to of ['shipped','delivered'])await checked(base,`/orders/${orderId}/transition`,owner,200,{to,reason:'Delivery confirmed'});
   assert.equal((await req(base,`/refunds`,{method:'POST',session:outsider,body:{paymentId:testPayment.id,requestedMinor:500,reason:'wrong order'}})).status,403);
   const refund=await checked(base,'/refunds',buyer,201,{paymentId:testPayment.id,requestedMinor:50000,feeMinor:20000,reason:'Customer made a genuine claim'});assert.equal(refund.feeDeductionMinor,0);
   assert.equal((await req(base,'/refunds',{method:'POST',session:buyer,body:{paymentId:testPayment.id,requestedMinor:100000,reason:'Second request exceeds balance'}})).status,400);
   assert.equal((await req(base,`/refunds/${refund.id}/approve`,{method:'POST',session:buyer,body:{}})).status,403);
-  await checked(base,`/refunds/${refund.id}/approve`,fin,200,{});
+  assert.equal((await req(base,`/refunds/${refund.id}/approve`,{method:'POST',session:fin,body:{feeMinor:60000,reviewNotes:'Excessive deduction'}})).status,400);
+  assert.equal((await req(base,`/refunds/${refund.id}/approve`,{method:'POST',session:fin,body:{feeMinor:5000}})).status,400);
+  const review=await checked(base,`/refunds/${refund.id}/approve`,fin,200,{feeMinor:5000,reviewNotes:'Agreed processing deduction per written cancellation terms'});
+  assert.equal(review.refundMinor,45000);
   assert.equal((await req(base,`/refunds/${refund.id}/approve`,{method:'POST',session:fin,body:{}})).status,409);
   assert.equal((await req(base,`/refunds/${refund.id}/submit`,{method:'POST',session:fin,body:{}})).status,503);
+  assert.equal((await req(base,'/admin/uat/settle-refund',{method:'POST',session:buyer,body:{refundId:refund.id}})).status,403);
+  const testRefund=await checked(base,'/admin/uat/settle-refund',owner,200,{refundId:refund.id});assert.equal(testRefund.simulated,true);
+  assert.equal((await req(base,'/admin/uat/settle-refund',{method:'POST',session:owner,body:{refundId:refund.id}})).status,409);
+  const buyerRefunds=await req(base,'/refunds',{session:buyer});assert.equal(buyerRefunds.json.refunds[0].status,'succeeded');
   assert.equal((await req(base,'/admin/audit',{session:owner})).status,200);
  });}finally{if(old===undefined)delete process.env.UAT_DEMO_ENABLED;else process.env.UAT_DEMO_ENABLED=old;}
 });
@@ -104,4 +122,33 @@ test('UAT demo payment is permission-gated; proof, production, shipping and refu
 test('UAT capture route cannot be accessed without explicit switch',async()=>serve(async(base)=>{
  const owner=await actor(base,'owner@designpro.test');
  assert.equal((await req(base,'/admin/uat/capture-payment',{method:'POST',session:owner,body:{orderId:'fake'}})).status,404);
+}));
+
+test('multiple recipients, quantity allocation, customer support and access isolation',async()=>serve(async(base)=>{
+ const buyer=await actor(base,'buyer@designpro.test'),owner=await actor(base,'owner@designpro.test'),outsider=await actor(base,'outsider@designpro.test');
+ const q=await checked(base,'/quotes',buyer,201,{categoryId:'digital-print',quantity:6,destinationCount:2});
+ await checked(base,`/quotes/${q.id}/firm`,owner,200,{firmTotalMinor:200000,reviewNotes:'Two-destination cost verified by finance and factory'});
+ await checked(base,`/quotes/${q.id}/accept`,buyer,200,{});
+ const baseDest=[{recipient:'Chitra Kumar',address:'Building 29, Vijayanagara, Bengaluru, Karnataka 560040',quantity:2,phone:'9876543210'},
+                 {recipient:'Aarav Rao',address:'Building 13, MG Road, Mysuru, Karnataka 570001',quantity:4,phone:'9876543211'}];
+ assert.equal((await req(base,'/orders',{method:'POST',session:buyer,body:{quoteId:q.id,address:'One address is not enough'}})).status,400);
+ assert.equal((await req(base,'/orders',{method:'POST',session:buyer,body:{quoteId:q.id,destinations:baseDest.slice(0,1)}})).status,400);
+ assert.equal((await req(base,'/orders',{method:'POST',session:buyer,body:{quoteId:q.id,destinations:[{...baseDest[0],quantity:1},baseDest[1]]}})).status,400);
+ const o=await checked(base,'/orders',buyer,201,{quoteId:q.id,destinations:baseDest});assert.equal(o.deliveryCount,2);
+ const d=await req(base,`/orders/${o.id}`,{session:buyer});assert.equal(d.json.destinations.length,2);
+ assert.equal(d.json.destinations.reduce((a,x)=>a+x.quantity,0),6);
+ assert.equal((await req(base,`/orders/${o.id}`,{session:outsider})).status,403);
+ const ticket=await checked(base,'/tickets',buyer,201,{orderId:o.id,category:'artwork',subject:'Please update corporate logo',message:'Replace the welcome pack logo before final artwork release'});
+ assert.equal(ticket.status,'open');
+ assert.equal((await req(base,`/tickets/${ticket.id}`,{session:outsider})).status,403);
+ assert.equal((await req(base,'/tickets',{session:outsider})).json.tickets.length,0);
+ assert.equal((await req(base,'/tickets',{method:'POST',session:outsider,body:{orderId:o.id,category:'delivery',subject:'Outsider request',message:'Attempt to access unrelated purchase'}})).status,403);
+ assert.equal((await req(base,`/tickets/${ticket.id}/status`,{method:'POST',session:buyer,body:{status:'resolved'}})).status,403);
+ await checked(base,`/tickets/${ticket.id}/status`,owner,200,{status:'in_review'});
+ await checked(base,`/tickets/${ticket.id}/reply`,buyer,201,{message:'The updated logo file has been sent by email.'});
+ assert.equal((await req(base,`/tickets/${ticket.id}/reply`,{method:'POST',session:outsider,body:{message:'Trying to inject reply'}})).status,403);
+ await checked(base,`/tickets/${ticket.id}/status`,owner,200,{status:'resolved'});
+ await checked(base,`/tickets/${ticket.id}/status`,owner,200,{status:'closed'});
+ assert.equal((await req(base,`/tickets/${ticket.id}/reply`,{method:'POST',session:buyer,body:{message:'Reopen please'}})).status,409);
+ assert.equal((await req(base,`/tickets/${ticket.id}`,{session:buyer})).json.messages.length,2);
 }));

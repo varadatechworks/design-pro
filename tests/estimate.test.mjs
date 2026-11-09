@@ -12,3 +12,5 @@ test('incompatible quantity, negative dimensions and over-large size rejected',(
 test('urgent production and multiple destinations affect estimate',()=>{const standard=estimate(base),urgent=estimate({...base,rush:true,destinationCount:5});assert.ok(urgent.totalMinor>standard.totalMinor)});
 test('in-state tax split and interstate IGST',()=>{const a=estimate(base),b=estimate({...base,destinationState:'MH'});assert.deepEqual(a.taxes.map(x=>x.component),['CGST','SGST']);assert.deepEqual(b.taxes.map(x=>x.component),['IGST']);assert.equal(a.taxMinor,b.taxMinor)});
 test('quote snapshot includes expiry and approximations',()=>{const a=estimate(base);assert.ok(a.validUntil);assert.match(a.warnings.join(' '),/Indicative/)});
+
+test('destination count cannot exceed the number of units',()=>assert.throws(()=>estimate({categoryId:'digital-print',quantity:1,destinationCount:2}),/Destination count/));
