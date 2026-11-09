@@ -1,0 +1,226 @@
+# DesignPro printing and packaging - Architecture, Deployment, ER, Database, Migration & KT Guide
+> **Code snapshot:** 2026-11-09, `main` branch of [varadatechworks/design-pro](https://github.com/varadatechworks/design-pro). **Repository-derived reference**; cloud environment and deployed DB must be verified separately.
+**UAT gate:** SQLite is local and not a verified production persistence solution; payments remain gated.
+## 1. System context and component architecture
+**Stack observed / documented:** Node.js 22 + SQLite for UAT. Source has web components, no verified mobile app and backend/API sources.
+
+```mermaid
+flowchart LR
+    Operator[Customers / Staff] --> UI[Web or module consumer]
+
+    UI --> Service[Application API / Domain]
+
+    Service --> Security[Auth / policy / validation]
+    Security --> DB[(Persisted data store - verify env)]
+
+    Service -.-> Provider[External adapters / payment / mail]
+    QA[Tests / CI] -. checks .-> Service
+```
+**Cross-cutting contracts:** server-validated inputs; least-privilege RBAC; concurrency/idempotency; customer vs admin isolation; audit IDs; non-secret config; appropriate geo evidence and billing snapshots where applicable.
+
+## 2. Deployment diagram (logical reference, not production verification)
+```mermaid
+flowchart TB
+    Git[GitHub main / tagged release] --> QA[CI / build checks]
+    QA -. approved artifact .-> Front[Frontend / CDN / HTTPS]
+    Front --> Back[Backend / APIs / runtime]
+
+    Back --> DB[(Database instance)]
+
+    Vault[Managed secrets / environment] -. injected .-> Back
+    Monitor[Logs / metrics / alerts] -. monitors .-> Back
+```
+**Complete for each environment:** cloud project/region, DNS and custom domain, static/web deployment, API container/function, environment names, database identity, secret manager, backup owner, health check, rollback release, CI status and contact matrix. Diagram does **not** establish a running deployment.
+
+## 3. ER diagram - representative source-verified baseline
+The ER uses `CREATE TABLE` and declared `REFERENCES` found in **1 selected baseline file(s)**, not every subsequent migration. It is not a complete physical ER; export the current database catalog for authoritative tables, columns and foreign keys.
+
+```mermaid
+erDiagram
+    USERS {
+        string id PK
+        string display_name
+        string email
+        string password_hash
+        string role
+    }
+    CUSTOM_ROLES {
+        string id PK
+        string code
+        string name
+        string permissions
+        string status
+    }
+    SESSIONS {
+        string id PK
+        string token_hash
+        string user_id
+        string csrf_hash
+        string expires_at
+    }
+    QUOTES {
+        string id PK
+        string user_id
+        string organization_id
+        string status
+        string configuration
+    }
+    ORDERS {
+        string id PK
+        string quote_id
+        string user_id
+        string status
+        string total_minor
+    }
+    PROOFS {
+        string id PK
+        string order_id
+        string version
+        string status
+        string notes
+    }
+    PAYMENTS {
+        string id PK
+        string order_id
+        string provider
+        string provider_order_id
+        string provider_payment_id
+    }
+    REFUNDS {
+        string id PK
+        string order_id
+        string payment_id
+        string requested_minor
+        string fee_minor
+    }
+    SHIPMENTS {
+        string id PK
+        string order_id
+        string carrier
+        string tracking_number
+        string status
+    }
+    SHIPMENT_EVENTS {
+        string id PK
+        string shipment_id
+        string status
+        string location
+        string notes
+    }
+    WORK_ORDERS {
+        string id PK
+        string order_id
+        string machine
+        string status
+        string quantity
+    }
+    INVENTORY {
+        string id PK
+        string name
+        string unit
+        string available
+        string reserved
+    }
+    AUDIT_EVENTS {
+        string id PK
+        string actor_id
+        string event_type
+        string entity_type
+        string entity_id
+    }
+    WEBHOOKS {
+        string id PK
+        string event_id
+        string provider
+        string payload_hash
+        string created_at
+    }
+    SETTINGS {
+        string id PK
+        string key
+        string value
+        string updated_at
+    }
+    USERS ||--o{ SESSIONS : references
+    USERS ||--o{ QUOTES : references
+    QUOTES ||--o{ ORDERS : references
+    USERS ||--o{ ORDERS : references
+    ORDERS ||--o{ PROOFS : references
+    ORDERS ||--o{ PAYMENTS : references
+    ORDERS ||--o{ REFUNDS : references
+    PAYMENTS ||--o{ REFUNDS : references
+    ORDERS ||--o{ SHIPMENTS : references
+    SHIPMENTS ||--o{ SHIPMENT_EVENTS : references
+    ORDERS ||--o{ WORK_ORDERS : references
+```
+
+## 4. Database schema and migration registry
+**DDL/migration sources detected:** 1. **Baseline tables detected:** 15. The full and exact schema is defined by the ordered source SQL and later ALTERs, plus the deployed migration history; this table-name view is intentionally limited to inspected baseline files.
+
+Baseline tables: `users`, `custom_roles`, `sessions`, `quotes`, `orders`, `proofs`, `payments`, `refunds`, `shipments`, `shipment_events`, `work_orders`, `inventory`, `audit_events`, `webhooks`, `settings`.
+
+**Versioned SQL / schema paths:**
+- [`apps/api/db.mjs`](../../apps/api/db.mjs)
+
+
+For a verified PostgreSQL schema snapshot: `pg_dump --schema-only --no-owner --no-privileges "$DATABASE_URL" > schema-only.sql`. For SQLite/D1, inspect `sqlite_master` and `PRAGMA table_info` in the correct environment. Never upload production PII or credentials to docs.
+
+## 5. Safe migration script and procedures
+**Repository-native migration:** npm run db:migrate (local UAT only). Copy/adapt this guarded operator wrapper into the deployment runbook; it performs **no migration by default**.
+
+```bash
+#!/usr/bin/env bash
+set -euo pipefail
+if [[ "${1:-plan}" != "apply" ]]; then
+  echo 'PLAN ONLY: verify target branch/SHA, migration history, pending DDL and permissions'
+  echo 'Back up, restore-test, dry-run in staging and record release/backup references.'
+  exit 0
+fi
+[[ "${CONFIRM_DB_MIGRATION:-}" == "BACKUP_VERIFIED" ]] || exit 3
+: "${BACKUP_REFERENCE:?Verified backup/snapshot reference required}"
+: "${MIGRATION_APPLY_CMD:?Provide the reviewed repository-native migration command}"
+bash -lc "$MIGRATION_APPLY_CMD"
+echo 'Verify migration tracking table, API health, smoke tests, reconciliation and audit.'
+```
+**Process:** (1) compare applied versions/checksums; (2) review forward/backward compatibility; (3) backup + actual restoration rehearsal; (4) staging migration/test; (5) review/approve; (6) production apply once; (7) verify health, business smoke and data; (8) record release; (9) recover using tested restore or forward-fix, never blindly undo destructive SQL. Production seeding is prohibited by default.
+
+## 6. Build, release and deployment KT
+- Check out the exact release SHA, supported runtime from `package.json` / `pom.xml` and documented local dependencies.
+- Run repository tests/build/coverage as configured, inspect CI workflow failures, artifacts, lint/typecheck and vulnerability scans.
+- Configure HTTPS, tenant/role/OTP modes, CORS and sessions; keep third-party secrets and payment credentials out of GitHub.
+- Validate database connectivity, migration record, app health, cron/background jobs, callback signature verification, logs and alert routes.
+- For web/mobile releases verify required version controls, app signing, staging-only toggles and rollback compatibility when present.
+
+## 7. Support, maintenance and incident runbook
+**Daily:** health/error rates, auth errors, queue/jobs, webhook exceptions, failed payment/invoice notifications and CI deploy status. **Weekly:** DB backup checks, restore sample, retention, storage growth, payment/reconciliation where relevant, access review. **Monthly:** dependency patching, cert renewals, DR drill, audit review and architecture drift.  
+**Incident:** establish scope/last-good SHA; protect logs; disable unsafe writes; compare current vs expected config; use tested rollback/restore; verify with smoke tests; record RCA and corrective test cases.
+
+## 8. KT and customer UAT demo script
+**Show:** Product config -> estimate -> RFQ -> approved quote -> proof -> work order -> shipping.
+| Minutes | What to demonstrate |
+|---|---|
+| 0-10 | Product scope, stakeholders, roles, current maturity |
+| 10-25 | Main happy path + real error/success messages |
+| 25-40 | Architecture, data flows, DB, RBAC and integrations |
+| 40-50 | Local build, CI/deploy, migration and rollback |
+| 50-60 | Backups, monitoring, admin operations, UAT gaps and contacts |
+
+**Negative tests:** bad credentials, expired session, forbidden role, bad input, duplicate submission, concurrent operation/stock conflict, offline/timeouts, provider failures, duplicate webhook if used, failed refund, DB loss, location missing (where relevant), invalid migration and tenant leak. Demonstrate only sandbox transactions unless deployment approval is recorded.
+
+## 9. Handover checklist and known evidence gaps
+- [ ] Production/staging service URLs, domains, hosting region, owner and runtime version documented
+- [ ] Secrets access handed over via vault (NO values committed)
+- [ ] Build and CI evidence, test report/coverage and open defects acknowledged
+- [ ] Current database schema-only export and ER reconciled to deployed SHA
+- [ ] Migration history, checksum changes and backup/restore evidence signed
+- [ ] Health, logs, monitoring thresholds and escalation contact operational
+- [ ] Application walkthrough, operational SOP and security/negative UAT approved
+- [ ] Release steps, rollback/forward-fix plan and next maintenance window owned
+
+**Other source documentation:**
+- [`docs/ARCHITECTURE.md`](../../docs/ARCHITECTURE.md)
+- [`docs/OPERATIONS.md`](../../docs/OPERATIONS.md)
+- [`docs/RELEASE_GATES.md`](../../docs/RELEASE_GATES.md)
+
+
+*This guide is a source-derived starting point for KT. Do not claim that source presence means production deployment, a passing CI run or an accurate live-schema export.*
