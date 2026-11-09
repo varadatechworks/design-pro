@@ -29,6 +29,7 @@ if [[ "$MODE" == "export-schema" ]]; then
       ;;
     sqlite)
       : "${DATABASE_FILE:?Set an existing local SQLite file; do not use ephemeral production storage}"
+      [[ -f "$DATABASE_FILE" ]] || { echo "SQLite file does not exist; refusing to create an empty DB." >&2; exit 2; }
       command -v sqlite3 >/dev/null || { echo "Install sqlite3" >&2; exit 2; }
       sqlite3 "$DATABASE_FILE" ".schema" > "${SCHEMA_OUTPUT:-schema-only.sql}"
       ;;
