@@ -81,6 +81,14 @@ def run():
    assert pg.locator('[data-ticket-detail="tkt_UAT_0001"]').count()==1
    pg.locator('[data-ticket-detail="tkt_UAT_0001"]').click()
    assert pg.locator('#ticketDetails .detail-panel').count()==1
+   pg.evaluate("showAuth('login')")
+   assert pg.locator('#authModal').is_visible()
+   pg.keyboard.press('Escape')
+   assert not pg.locator('#authModal').is_visible()
+   pg.evaluate("notify('Status feedback test')")
+   assert pg.locator('#toast').is_visible()
+   pg.locator('.toast-dismiss').click()
+   assert not pg.locator('#toast').is_visible()
    assert not errors,errors
    pg.close()
   customer,errors=page_setup(browser,{'width':390,'height':844},'CUSTOMER')

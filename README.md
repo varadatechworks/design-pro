@@ -88,3 +88,12 @@ This is not full customer UAT sign-off: email verification/MFA, actual artwork u
 - The test suite now covers 26 Node cases and the browser smoke harness at 375, 390, 768 and 1440 pixels. See [`docs/UAT_RELEASE_0.3.md`](docs/UAT_RELEASE_0.3.md) for exact evidence and remaining gates.
 
 **This release does not enable actual money transfers, production-grade 3D, secure artwork hosting, courier booking or verified factory pricing.** Those require merchant credentials, material/machine specifications and deployment controls before sign-off.
+
+## UAT hardening and technical handover — November 10, 2026
+
+- New strict JSON-object and monetary input validation; accessible sign-in modal, in-flight estimate protection, dismissible notices and improved console layouts.
+- `npm run schema:preflight` checks repeatability, presence of 19 application tables, FK and SQLite integrity. CI runs tests and browser smoke on pull requests.
+- [360-degree UAT verification matrix](docs/UAT_360_REVIEW_2026-11-10.md) and [architecture/deployment/ER/KT pack](docs/architecture-kt/DESIGNPRO_HANDOVER_2026-11-10.md).
+- [Production migration strategy](docs/architecture-kt/PRODUCTION_DB_MIGRATION_PLAN.md) and [candidate PostgreSQL schema](sql/postgres/0001_designpro_baseline_candidate.sql) **for disposable review environments only**.
+
+**Controlled UAT only:** No verified PostgreSQL adapter, secure artwork service, actual factory rates, certified Razorpay settlement, tax invoices or courier booking. Do not enable real payments based on these docs.

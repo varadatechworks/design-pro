@@ -29,12 +29,13 @@ jobs:
           node --check apps/web/app.js
       - name: Run all unit, API, webhook and negative UAT tests
         run: npm test
+      - name: Verify SQLite migration idempotency and schema integrity
+        run: npm run schema:preflight
       - name: Measure coverage (informational)
         run: npm run coverage
 
   responsive-smoke:
-    name: Responsive browser smoke (manual)
-    if: github.event_name == 'workflow_dispatch'
+    name: Responsive browser smoke (automated)
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:

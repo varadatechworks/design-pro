@@ -1,0 +1,35 @@
+-- DESIGNPRO CANDIDATE ONLY. Run in an EMPTY DISPOSABLE PostgreSQL instance for review.
+-- Not deployed or wired to SQLite-based API. Never apply to customer or production DB.
+BEGIN;
+CREATE TABLE users(id TEXT PRIMARY KEY,display_name TEXT NOT NULL,email TEXT NOT NULL UNIQUE,password_hash TEXT NOT NULL,role TEXT NOT NULL DEFAULT 'CUSTOMER',status TEXT NOT NULL DEFAULT 'active',email_verified BOOLEAN NOT NULL DEFAULT FALSE,organization_id TEXT,created_at TIMESTAMPTZ NOT NULL);
+CREATE TABLE custom_roles(code TEXT PRIMARY KEY,name TEXT NOT NULL,permissions JSONB NOT NULL,status TEXT NOT NULL DEFAULT 'active',created_by TEXT NOT NULL,created_at TIMESTAMPTZ NOT NULL);
+CREATE TABLE sessions(token_hash TEXT PRIMARY KEY,user_id TEXT NOT NULL REFERENCES users(id),csrf_hash TEXT NOT NULL,expires_at TIMESTAMPTZ NOT NULL,created_at TIMESTAMPTZ NOT NULL);
+CREATE TABLE quotes(id TEXT PRIMARY KEY,user_id TEXT NOT NULL REFERENCES users(id),organization_id TEXT,status TEXT NOT NULL,configuration JSONB NOT NULL,estimate JSONB NOT NULL,version INTEGER NOT NULL DEFAULT 1 CHECK(version>0),firm_total_minor BIGINT CHECK(firm_total_minor>=0),expires_at TIMESTAMPTZ NOT NULL,created_at TIMESTAMPTZ NOT NULL,updated_at TIMESTAMPTZ NOT NULL);
+CREATE TABLE orders(id TEXT PRIMARY KEY,quote_id TEXT NOT NULL UNIQUE REFERENCES quotes(id),user_id TEXT NOT NULL REFERENCES users(id),status TEXT NOT NULL,total_minor BIGINT NOT NULL CHECK(total_minor>=0),currency TEXT NOT NULL DEFAULT 'INR',proof_id TEXT,address TEXT,created_at TIMESTAMPTZ NOT NULL,updated_at TIMESTAMPTZ NOT NULL);
+CREATE TABLE proofs(id TEXT PRIMARY KEY,order_id TEXT NOT NULL REFERENCES orders(id),version INTEGER NOT NULL CHECK(version>0),status TEXT NOT NULL,notes TEXT,approved_by TEXT,approved_at TIMESTAMPTZ,created_at TIMESTAMPTZ NOT NULL,UNIQUE(order_id,version));
+CREATE TABLE order_destinations(id TEXT PRIMARY KEY,order_id TEXT NOT NULL REFERENCES orders(id),recipient TEXT NOT NULL,address TEXT NOT NULL,phone TEXT,quantity INTEGER NOT NULL CHECK(quantity>0),created_at TIMESTAMPTZ NOT NULL);
+CREATE TABLE payments(id TEXT PRIMARY KEY,order_id TEXT NOT NULL REFERENCES orders(id),provider TEXT NOT NULL,provider_order_id TEXT UNIQUE,provider_payment_id TEXT UNIQUE,amount_minor BIGINT NOT NULL CHECK(amount_minor>=0),status TEXT NOT NULL,created_at TIMESTAMPTZ NOT NULL,updated_at TIMESTAMPTZ NOT NULL);
+CREATE TABLE refunds(id TEXT PRIMARY KEY,order_id TEXT NOT NULL REFERENCES orders(id),payment_id TEXT NOT NULL REFERENCES payments(id),requested_minor BIGINT NOT NULL CHECK(requested_minor>=0),fee_minor BIGINT NOT NULL CHECK(fee_minor>=0),refund_minor BIGINT NOT NULL CHECK(refund_minor>=0),status TEXT NOT NULL,requested_by TEXT NOT NULL,approved_by TEXT,reason TEXT NOT NULL,provider_refund_id TEXT,created_at TIMESTAMPTZ NOT NULL,updated_at TIMESTAMPTZ NOT NULL,CHECK(fee_minor+refund_minor=requested_minor));
+CREATE TABLE shipments(id TEXT PRIMARY KEY,order_id TEXT NOT NULL REFERENCES orders(id),carrier TEXT NOT NULL,tracking_number TEXT NOT NULL,status TEXT NOT NULL,address TEXT,created_at TIMESTAMPTZ NOT NULL,updated_at TIMESTAMPTZ NOT NULL,destination_id TEXT REFERENCES order_destinations(id),quantity INTEGER NOT NULL DEFAULT 1 CHECK(quantity>0));
+CREATE TABLE shipment_events(id TEXT PRIMARY KEY,shipment_id TEXT NOT NULL REFERENCES shipments(id),status TEXT NOT NULL,location TEXT,notes TEXT,at TIMESTAMPTZ NOT NULL);
+CREATE TABLE work_orders(id TEXT PRIMARY KEY,order_id TEXT NOT NULL REFERENCES orders(id),machine TEXT,status TEXT NOT NULL,quantity INTEGER NOT NULL CHECK(quantity>0),notes TEXT,created_at TIMESTAMPTZ NOT NULL);
+CREATE TABLE inventory(id TEXT PRIMARY KEY,name TEXT NOT NULL,unit TEXT NOT NULL,available NUMERIC(18,4) NOT NULL DEFAULT 0 CHECK(available>=0),reserved NUMERIC(18,4) NOT NULL DEFAULT 0 CHECK(reserved>=0),reorder_level NUMERIC(18,4) NOT NULL DEFAULT 0 CHECK(reorder_level>=0),updated_at TIMESTAMPTZ NOT NULL);
+CREATE TABLE audit_events(id TEXT PRIMARY KEY,actor_id TEXT,event_type TEXT NOT NULL,entity_type TEXT NOT NULL,entity_id TEXT,detail JSONB,at TIMESTAMPTZ NOT NULL);
+CREATE TABLE webhooks(event_id TEXT PRIMARY KEY,provider TEXT NOT NULL,payload_hash TEXT NOT NULL,created_at TIMESTAMPTZ NOT NULL);
+CREATE TABLE settings(key TEXT PRIMARY KEY,value TEXT NOT NULL,updated_at TIMESTAMPTZ NOT NULL);
+CREATE TABLE qc_inspections(id TEXT PRIMARY KEY,order_id TEXT NOT NULL REFERENCES orders(id),actor_id TEXT NOT NULL REFERENCES users(id),result TEXT NOT NULL CHECK(result IN ('passed','failed')),sample_qty INTEGER NOT NULL CHECK(sample_qty>0),notes TEXT NOT NULL,created_at TIMESTAMPTZ NOT NULL);
+CREATE TABLE tickets(id TEXT PRIMARY KEY,order_id TEXT NOT NULL REFERENCES orders(id),created_by TEXT NOT NULL REFERENCES users(id),category TEXT NOT NULL,status TEXT NOT NULL DEFAULT 'open',subject TEXT NOT NULL,created_at TIMESTAMPTZ NOT NULL,updated_at TIMESTAMPTZ NOT NULL);
+CREATE TABLE ticket_messages(id TEXT PRIMARY KEY,ticket_id TEXT NOT NULL REFERENCES tickets(id),author_id TEXT NOT NULL REFERENCES users(id),message TEXT NOT NULL,created_at TIMESTAMPTZ NOT NULL);
+CREATE INDEX idx_destination_order ON order_destinations(order_id);
+CREATE INDEX idx_qc_order ON qc_inspections(order_id,created_at);
+CREATE INDEX idx_tickets_order ON tickets(order_id,updated_at);
+CREATE INDEX idx_quote_user ON quotes(user_id,created_at);
+CREATE INDEX idx_orders_user ON orders(user_id,created_at);
+CREATE INDEX idx_payments_order ON payments(order_id);
+CREATE INDEX idx_refunds_payment ON refunds(payment_id);
+CREATE INDEX idx_audit_entity ON audit_events(entity_type,entity_id,at);
+CREATE INDEX idx_proofs_order ON proofs(order_id,version);
+CREATE INDEX idx_shipments_order ON shipments(order_id);
+CREATE INDEX idx_events_shipment ON shipment_events(shipment_id,at);
+CREATE INDEX idx_ticket_messages ON ticket_messages(ticket_id,created_at);
+COMMIT;
