@@ -318,3 +318,5 @@ button{cursor:pointer}
  .face-colour-row,.face-typography-grid{grid-template-columns:1fr}
  .face-editor-panel{padding:11px}
 }
+
+.face.has-custom-text .preview-brand,.face.has-custom-text .face-small{display:none!important}
