@@ -122,6 +122,7 @@ def page_setup(browser,viewport,role):
  assert frame.count()==1
  # Return the model to a front-facing view so the overlay is not occluded by another 3D face.
  page.locator('#viewFront').click()
+ frame.scroll_into_view_if_needed()
  page.wait_for_timeout(300)
  before=frame.evaluate("(el)=>el.style.left")
  bounds=frame.bounding_box()
