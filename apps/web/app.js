@@ -2,7 +2,7 @@ const $=id=>document.getElementById(id);
 const INR=v=>new Intl.NumberFormat('en-IN',{style:'currency',currency:'INR',maximumFractionDigits:2}).format((Number(v)||0)/100);
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const el=(tag,cls='',html='')=>{const e=document.createElement(tag);if(cls)e.className=cls;e.innerHTML=html;return e;};
-const state={catalog:null,category:'welcome-kit',filter:'all',estimate:null,user:null,csrf:null,authSubmitting:false,authReturnFocus:null,authMode:'login',workspaceTab:'quotes',boxColor:'#373327',rotation:{x:-22,y:-29},refreshTimer:null,uatEnabled:false,paymentsEnabled:false,aiProvider:'disabled',designStudio:{shape:'rectangular',selectedFace:'front',faceColors:{front:'#373327',back:'#373327',left:'#373327',right:'#373327',top:'#373327',bottom:'#373327'},faceTexts:{front:'',back:'',left:'',right:'',top:'',bottom:''},fontSize:16,textAlign:'center',customShapeFileName:'',artworkFiles:{},aiConcept:null},workspaceInitialized:false};
+const state={catalog:null,category:'welcome-kit',filter:'all',estimate:null,user:null,csrf:null,authSubmitting:false,authReturnFocus:null,authMode:'login',workspaceTab:'quotes',boxColor:'#373327',rotation:{x:-22,y:-29},refreshTimer:null,uatEnabled:false,paymentsEnabled:false,aiProvider:'disabled',designStudio:{shape:'rectangular',selectedFace:'front',faceColors:{front:'#373327',back:'#373327',left:'#373327',right:'#373327',top:'#373327',bottom:'#373327'},faceTexts:{front:'',back:'',left:'',right:'',top:'',bottom:''},fontSize:16,textAlign:'center',faceTypography:{front:{fontFamily:'serif',fontStyle:'normal',fontColor:'#F4E6CF',fontWeight:'600',fontSize:16,textAlign:'center'},back:{fontFamily:'serif',fontStyle:'normal',fontColor:'#F4E6CF',fontWeight:'600',fontSize:16,textAlign:'center'},left:{fontFamily:'serif',fontStyle:'normal',fontColor:'#F4E6CF',fontWeight:'600',fontSize:16,textAlign:'center'},right:{fontFamily:'serif',fontStyle:'normal',fontColor:'#F4E6CF',fontWeight:'600',fontSize:16,textAlign:'center'},top:{fontFamily:'serif',fontStyle:'normal',fontColor:'#F4E6CF',fontWeight:'600',fontSize:16,textAlign:'center'},bottom:{fontFamily:'serif',fontStyle:'normal',fontColor:'#F4E6CF',fontWeight:'600',fontSize:16,textAlign:'center'}},artworkPositions:{front:{left:20,top:18,width:60,height:60},back:{left:20,top:18,width:60,height:60},left:{left:20,top:18,width:60,height:60},right:{left:20,top:18,width:60,height:60},top:{left:20,top:18,width:60,height:60},bottom:{left:20,top:18,width:60,height:60}},customShapeFileName:'',artworkFiles:{},aiConcept:null},workspaceInitialized:false};
 let toastTimer;
 const notify=(message,error=false)=>{const t=$('toast');t.replaceChildren();const label=document.createElement('span');label.textContent=message;const dismiss=document.createElement('button');dismiss.type='button';dismiss.className='toast-dismiss';dismiss.textContent='×';dismiss.setAttribute('aria-label','Dismiss notification');dismiss.addEventListener('click',()=>{t.hidden=true;clearTimeout(toastTimer)});t.append(label,dismiss);t.className='toast-v2 '+(error?'toast-error':'toast-success');t.setAttribute('role',error?'alert':'status');t.setAttribute('aria-live',error?'assertive':'polite');t.hidden=false;clearTimeout(toastTimer);toastTimer=setTimeout(()=>t.hidden=true,8000)};
 async function api(path,options={}){const cfg={credentials:'same-origin',headers:{'Content-Type':'application/json',...(state.csrf?{'X-CSRF-Token':state.csrf}:{})},...options};if(cfg.body&&typeof cfg.body!=='string')cfg.body=JSON.stringify(cfg.body);let response;try{response=await fetch('/api/v1'+path,cfg)}catch{throw new Error('Cannot connect to DesignPro. Check your connection and try again.')}let data;try{data=await response.json()}catch{throw new Error('The service returned an unreadable response. Try again.')}if(!response.ok){const msg=data.error||`Request failed (${response.status})`;if(response.status===401&&state.user){state.user=null;state.csrf=null;updateAccount();notify('Your session has expired. Please sign in again.',true);loadWorkspace();}throw new Error(msg+(data.requestId?` · Reference ${data.requestId}`:''))}return data;}
@@ -214,42 +214,58 @@ function initStudioEnhancements(){
  panel.id='designStudioControls';
  panel.className='design-studio-controls';
  panel.innerHTML=
-  '<div class="designer-panel-heading"><div><span class="designer-kicker">THE DETAIL STUDIO</span><h3>Make every side yours.</h3><p>Choose a form, set individual face colours, add copy and place artwork.</p></div><span class="designer-status">LIVE PREVIEW</span></div>'+
-  '<div class="designer-grid">'+
-   '<section class="designer-card"><div class="designer-card-title"><span>01</span><h4>Shape & form</h4></div>'+
-    '<label class="designer-label" for="shapePreset">Shape preset</label><select id="shapePreset" class="field"><option value="rectangular">Rectangular box</option><option value="cube">Cube</option><option value="tall">Tall box</option><option value="flat">Flat print panel</option><option value="rounded">Rounded-edge box</option><option value="bottle">Bottle / cylinder</option><option value="label-sheet">Label sheet</option><option value="display">Display stand</option><option value="custom">Custom SVG profile</option></select>'+
-    '<label class="designer-label" for="customShapeUpload">Upload a custom shape / dieline (SVG)</label><input id="customShapeUpload" class="designer-file" type="file" accept=".svg,image/svg+xml">'+
-    '<div class="shape-import-preview"><img id="customShapeThumb" alt="Uploaded custom shape outline" hidden><p id="shapeImportStatus" role="status">SVG outline supported for a local concept overlay. CDR/DXF files need conversion to SVG.</p></div>'+
-    '<p class="designer-help">The preset changes the concept proportions. Entered millimetres remain the pricing dimensions. A custom SVG is a 2D reference, not an automatically engineered 3D mesh.</p></section>'+
-   '<section class="designer-card"><div class="designer-card-title"><span>02</span><h4>Design each side</h4></div>'+
-    '<div class="face-selector" id="faceSelector" role="group" aria-label="Choose product side">'+faces.map(function(face){return '<button type="button" data-face="'+face+'" aria-pressed="'+(face==='front'?'true':'false')+'">'+labels[face]+'</button>';}).join('')+'</div>'+
-    '<div class="face-editor-grid"><label class="designer-label" for="faceColorInput">Selected side colour</label><input id="faceColorInput" class="face-color-input" type="color" value="#373327"><label class="designer-label" for="faceTextInput">Text on this side</label><textarea id="faceTextInput" class="field" rows="2" maxlength="120" placeholder="Add a message for the selected side"></textarea>'+
-    '<div class="face-editor-options"><label class="designer-label" for="faceFontSize">Text size<input id="faceFontSize" class="field" type="number" min="10" max="32" value="16"></label><label class="designer-label" for="faceTextAlign">Alignment<select id="faceTextAlign" class="field"><option value="center">Centre</option><option value="left">Left</option><option value="right">Right</option></select></label></div>'+
+  '<div class="designer-panel-heading"><div><span class="designer-kicker">THE DETAIL STUDIO</span><h3>Design every side.</h3><p>Select a side below, then style its colour, copy and artwork.</p></div><span class="designer-status">LIVE PREVIEW</span></div>'+
+  '<div class="face-design-workspace">'+
+   '<div class="face-selector" id="faceSelector" role="tablist" aria-label="Choose product side">'+faces.map(function(face,index){return '<button type="button" role="tab" id="faceTab-'+face+'" aria-controls="faceEditorPanel" data-face="'+face+'" aria-selected="'+(face==='front'?'true':'false')+'" tabindex="'+(face==='front'?'0':'-1')+'">'+labels[face]+'</button>';}).join('')+'</div>'+
+   '<section class="face-editor-panel" id="faceEditorPanel" role="tabpanel" aria-labelledby="faceTab-front">'+
+    '<div class="face-editor-heading"><div><span class="designer-kicker">CURRENT SIDE</span><h4 id="activeFaceTitle">Front side</h4></div><span class="face-editor-hint">Changes update the 3D preview instantly</span></div>'+
+    '<div class="face-colour-row">'+
+     '<label class="designer-label" for="faceColorInput">Side background colour<input id="faceColorInput" class="face-color-input" type="color" value="#373327"></label>'+
+     '<label class="designer-label" for="faceFontColor">Text colour<input id="faceFontColor" class="face-color-input" type="color" value="#F4E6CF"></label>'+
+    '</div>'+
+    '<label class="designer-label" for="faceTextInput">Text on this side</label><textarea id="faceTextInput" class="field" rows="2" maxlength="120" placeholder="Add a message for this side"></textarea>'+
+    '<div class="face-typography-grid">'+
+     '<label class="designer-label" for="faceFontFamily">Font family<select id="faceFontFamily" class="field"><option value="serif">Elegant serif</option><option value="sans">Modern sans</option><option value="display">Bold display</option><option value="mono">Monospace</option></select></label>'+
+     '<label class="designer-label" for="faceFontStyle">Font style<select id="faceFontStyle" class="field"><option value="normal">Regular</option><option value="italic">Italic</option></select></label>'+
+     '<label class="designer-label" for="faceFontWeight">Font weight<select id="faceFontWeight" class="field"><option value="300">Light</option><option value="400">Regular</option><option value="500">Medium</option><option value="600">Semibold</option><option value="700">Bold</option><option value="800">Extra bold</option></select></label>'+
+     '<label class="designer-label" for="faceFontSize">Font size (px)<input id="faceFontSize" class="field" type="number" min="10" max="48" value="16"></label>'+
+     '<label class="designer-label" for="faceTextAlign">Text alignment<select id="faceTextAlign" class="field"><option value="left">Left</option><option value="center">Centre</option><option value="right">Right</option></select></label>'+
+    '</div>'+
     '<div class="face-editor-footer"><span id="faceTextCount">0 / 120</span><button type="button" class="designer-link" id="clearFaceText">Clear side text</button></div>'+
-    '<label class="designer-label" for="artworkUpload">Place artwork on selected side</label><input id="artworkUpload" class="designer-file" type="file" accept=".cdr,.ai,.eps,.pdf,.svg,.png,.jpg,.jpeg,.webp,.tif,.tiff">'+
-    '<p id="artworkImportStatus" class="designer-help" role="status">SVG and common image files can be previewed locally. CDR, AI, EPS and PDF metadata is extracted only where supported.</p></div>'+
+    '<div class="face-artwork-upload"><div><label class="designer-label" for="faceImageUpload">Image / logo on this side</label><input id="faceImageUpload" class="designer-file" type="file" accept="image/png,image/jpeg,image/webp,image/svg+xml"></div><button type="button" class="designer-link" id="clearFaceArtwork">Remove image</button></div>'+
+    '<p id="faceArtworkStatus" class="designer-help" role="status">Upload an image, then drag it directly on the 3D side to position it. Use the corner handle to resize. You can also drop an image onto a visible side.</p>'+
+    '<div class="face-editor-footer"><span id="faceTextCountMirror"> </span><span class="face-editor-hint">Each side keeps its own settings</span></div>'+
    '</section>'+
-   '<section class="designer-card designer-import-card"><div class="designer-card-title"><span>03</span><h4>Import an existing design</h4></div>'+
-    '<p>Choose a design file to inspect its dimensions and text. Detected measurements are suggestions—confirm the intended physical size before pricing.</p>'+
-    '<div class="import-format-list"><span>CDR</span><span>AI</span><span>EPS</span><span>PDF</span><span>SVG</span><span>PNG</span><span>JPG</span><span>WEBP</span></div>'+
-    '<p class="designer-help">Raw CDR is proprietary and cannot be reliably parsed in a browser. Export it from CorelDRAW as SVG or PDF for more useful extraction. Imported files stay in this browser session; they are not uploaded or stored by the server.</p></section>'+
-   '<section class="designer-card designer-ai-card"><div class="designer-card-title"><span>04</span><h4>AI design assistant</h4><span class="ai-local-tag">LOCAL AI · OPTIONAL</span></div>'+
-    '<p>Not sure how to design it? Describe your brand, audience, occasion and mood. A local model can suggest a shape, palette, finishes and side-specific copy.</p>'+
-    '<label class="designer-label" for="aiBrief">Describe your idea</label><textarea id="aiBrief" class="field" rows="3" maxlength="1500" placeholder="Example: A premium welcome box for a technology company, deep navy with copper foil, minimal typography and a warm message inside the lid."></textarea>'+
-    '<div class="ai-actions"><span id="aiConnectionStatus" role="status">Local AI is optional. Configure Ollama to enable concept generation.</span><button type="button" class="primary-button" id="generateAiConcept">Generate concept ↗</button></div>'+
-    '<div id="aiConceptResult" class="ai-concept-result" aria-live="polite"></div>'+
-    '<p class="designer-help">This assistant proposes a creative direction; it does not generate final print-ready artwork, guarantee production feasibility or set prices. No paid API key is required when using local Ollama.</p></section>'+
   '</div>';
+ const leftTools=document.createElement('div');
+ leftTools.id='leftStudioTools';
+ leftTools.className='left-studio-tools';
+ leftTools.innerHTML=
+  '<section class="designer-card left-shape-card"><div class="designer-card-title"><span>05</span><h4>Shape & form</h4></div>'+
+   '<label class="designer-label" for="shapePreset">Product shape</label><select id="shapePreset" class="field"><option value="rectangular">Rectangular box</option><option value="cube">Cube</option><option value="tall">Tall box</option><option value="flat">Flat print panel</option><option value="rounded">Rounded-edge box</option><option value="bottle">Bottle / cylinder</option><option value="label-sheet">Label sheet</option><option value="display">Display stand</option><option value="custom">Custom SVG profile</option></select>'+
+   '<label class="designer-label" for="customShapeUpload">Upload custom shape outline (SVG)</label><input id="customShapeUpload" class="designer-file" type="file" accept=".svg,image/svg+xml">'+
+   '<div class="shape-import-preview"><img id="customShapeThumb" alt="Uploaded custom shape outline" hidden><p id="shapeImportStatus" role="status">SVG outline supported for a local concept overlay. Other CAD formats need conversion.</p></div>'+
+   '<p class="designer-help">Custom SVG is a 2D reference, not an automatically engineered 3D mesh. Dimensions remain the pricing dimensions.</p></section>'+
+  '<details class="left-studio-details"><summary>Import an existing design file <span>＋</span></summary><section class="designer-card designer-import-card">'+
+   '<p>Inspect an existing file and suggest its page dimensions and readable text where supported.</p>'+
+   '<div class="import-format-list"><span>CDR</span><span>AI</span><span>EPS</span><span>PDF</span><span>SVG</span><span>PNG</span><span>JPG</span><span>WEBP</span></div>'+
+   '<label class="designer-label" for="artworkUpload">Select design file</label><input id="artworkUpload" class="designer-file" type="file" accept=".cdr,.ai,.eps,.pdf,.svg,.png,.jpg,.jpeg,.webp,.tif,.tiff">'+
+   '<p id="artworkImportStatus" class="designer-help" role="status">Raw CDR is proprietary. Export from CorelDRAW to SVG or PDF for useful extraction. Imported files stay in this browser session and are not uploaded.</p>'+
+   '</section></details>'+
+  '<details class="left-studio-details"><summary>AI design assistant <span class="ai-local-tag">LOCAL AI · OPTIONAL</span></summary><section class="designer-card designer-ai-card">'+
+   '<p>Describe your brand, audience, occasion and mood. Local AI can suggest a shape, palette, finish and side-specific copy.</p>'+
+   '<label class="designer-label" for="aiBrief">Describe your idea</label><textarea id="aiBrief" class="field" rows="3" maxlength="1500" placeholder="Example: A premium welcome box in deep navy with copper foil and minimal typography."></textarea>'+
+   '<div class="ai-actions"><span id="aiConnectionStatus" role="status">Configure local Ollama to enable concept generation.</span><button type="button" class="primary-button" id="generateAiConcept">Generate concept ↗</button></div>'+
+   '<div id="aiConceptResult" class="ai-concept-result" aria-live="polite"></div>'+
+   '<p class="designer-help">AI creates a design direction, not final print-ready artwork or prices. No paid API key is required with local Ollama.</p>'+
+   '</section></details>';
+ const controls=document.querySelector('.studio-controls');
+ const moreOptions=controls.querySelector('.more-options');
+ controls.insertBefore(leftTools,moreOptions);
+ const previewTools=document.querySelector('.preview-tools');
+ previewTools.insertAdjacentElement('afterend',panel);
  const swatches=document.querySelector('.swatches');
- swatches.insertAdjacentElement('afterend',panel);
- const toolbar=document.querySelector('.preview-toolbar');
- if(toolbar&&!document.getElementById('previewProductName')){
-  const name=document.createElement('span');name.id='previewProductName';name.className='preview-product-name';name.textContent='Corporate Welcome Kits';toolbar.append(name);
- }
- const viewButtons=document.querySelector('.view-buttons');
- if(viewButtons&&!$('view360Toggle'))viewButtons.insertAdjacentHTML('beforeend','<button type="button" id="view360Toggle" aria-pressed="false">360° view</button>');
- const tools=document.querySelector('.preview-tools');
- if(tools&&!$('rotationSlider'))tools.insertAdjacentHTML('beforeend','<label class="rotation-control" for="rotationSlider">Rotate <input id="rotationSlider" type="range" min="0" max="360" step="1" value="331"><output id="rotationValue">331°</output></label>');
+ if(swatches)swatches.remove();
  const studio=state.designStudio;
  const colourInput=$('faceColorInput'),textInput=$('faceTextInput'),sizeInput=$('faceFontSize'),alignInput=$('faceTextAlign');
  function safeSvg(raw){
