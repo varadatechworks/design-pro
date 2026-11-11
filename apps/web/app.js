@@ -217,7 +217,7 @@ function initStudioEnhancements(){
   '<div class="designer-panel-heading"><div><span class="designer-kicker">THE DETAIL STUDIO</span><h3>Make every side yours.</h3><p>Choose a form, set individual face colours, add copy and place artwork.</p></div><span class="designer-status">LIVE PREVIEW</span></div>'+
   '<div class="designer-grid">'+
    '<section class="designer-card"><div class="designer-card-title"><span>01</span><h4>Shape & form</h4></div>'+
-    '<label class="designer-label" for="shapePreset">Shape preset</label><select id="shapePreset" class="field"><option value="rectangular">Rectangular box</option><option value="cube">Cube</option><option value="tall">Tall box</option><option value="flat">Flat box</option><option value="rounded">Rounded-edge box</option><option value="custom">Custom SVG profile</option></select>'+
+    '<label class="designer-label" for="shapePreset">Shape preset</label><select id="shapePreset" class="field"><option value="rectangular">Rectangular box</option><option value="cube">Cube</option><option value="tall">Tall box</option><option value="flat">Flat print panel</option><option value="rounded">Rounded-edge box</option><option value="bottle">Bottle / cylinder</option><option value="label-sheet">Label sheet</option><option value="display">Display stand</option><option value="custom">Custom SVG profile</option></select>'+
     '<label class="designer-label" for="customShapeUpload">Upload a custom shape / dieline (SVG)</label><input id="customShapeUpload" class="designer-file" type="file" accept=".svg,image/svg+xml">'+
     '<div class="shape-import-preview"><img id="customShapeThumb" alt="Uploaded custom shape outline" hidden><p id="shapeImportStatus" role="status">SVG outline supported for a local concept overlay. CDR/DXF files need conversion to SVG.</p></div>'+
     '<p class="designer-help">The preset changes the concept proportions. Entered millimetres remain the pricing dimensions. A custom SVG is a 2D reference, not an automatically engineered 3D mesh.</p></section>'+
@@ -306,10 +306,15 @@ function initStudioEnhancements(){
   if(studio.shape==='cube'){const side=Math.max(w,d,h);w=side;d=side;h=side;}
   if(studio.shape==='tall')h=Math.max(h,Math.min(215,Math.max(w,d)*.82));
   if(studio.shape==='flat')h=Math.min(h,Math.max(58,Math.min(w,d)*.42));
+  if(studio.shape==='bottle'){w=94;d=94;h=210;}
+  if(studio.shape==='label-sheet'){w=230;d=165;h=34;}
+  if(studio.shape==='display'){w=170;d=90;h=210;}
   const radius=studio.shape==='rounded'?14:studio.shape==='custom'?8:3;
   const values={'--cube-w':w+'px','--cube-h':h+'px','--cube-d':d+'px','--cube-d-half':(d/2)+'px','--cube-w-half':(w/2)+'px','--cube-h-half':(h/2)+'px','--cube-left':((w-d)/2)+'px','--cube-top':((h-d)/2)+'px','--cube-radius':radius+'px'};
   Object.entries(values).forEach(function(pair){cube.style.setProperty(pair[0],pair[1]);});
   cube.dataset.shape=studio.shape;cube.classList.toggle('is-rounded',studio.shape==='rounded');cube.dataset.material=$('materialSelect').value||'premium';cube.dataset.finish=$('finishSelect').value||'matte';
+  const frontFace=document.querySelector('.product-cube .face.front');let bottleCap=frontFace.querySelector('.bottle-cap');if(studio.shape==='bottle'){if(!bottleCap){bottleCap=document.createElement('span');bottleCap.className='bottle-cap';bottleCap.setAttribute('aria-hidden','true');frontFace.append(bottleCap);}}else if(bottleCap)bottleCap.remove();
+  let labelGrid=frontFace.querySelector('.label-grid-preview');if(studio.shape==='label-sheet'){if(!labelGrid){labelGrid=document.createElement('span');labelGrid.className='label-grid-preview';labelGrid.setAttribute('aria-hidden','true');labelGrid.innerHTML='<i></i><i></i><i></i><i></i><i></i><i></i>';frontFace.append(labelGrid);}}else if(labelGrid)labelGrid.remove();
   faces.forEach(function(face){cube.style.setProperty('--face-'+face,studio.faceColors[face]||state.boxColor||'#373327');});
   const title=category?category.name:'Custom product';
   if($('previewProductName'))$('previewProductName').textContent=title+' · '+(studio.shape==='custom'?'Custom profile':studio.shape.replaceAll('_',' '));
@@ -331,7 +336,7 @@ function initStudioEnhancements(){
  function defaultShapeForCategory(){
   const category=state.catalog?.categories?.find(function(c){return c.id===state.category;});
   if(manualShape)return;
-  studio.shape=category&&['print','uv','laser'].includes(category.kind)?'flat':category&&category.kind==='gift'?'rounded':'rectangular';
+  const productShapes={'corporate-gift':'bottle','labels':'label-sheet','display':'display','digital-print':'flat','marketing':'flat','stationery':'flat','uv-print':'flat','laser-cut':'flat','luxury-gift':'rounded'};studio.shape=productShapes[state.category]||(category&&['print','uv','laser'].includes(category.kind)?'flat':'rectangular');
   $('shapePreset').value=studio.shape;
  }
  $('shapePreset').value=studio.shape;
@@ -413,7 +418,7 @@ function initStudioEnhancements(){
    faces.forEach(function(face){const chip=document.createElement('span');chip.title=labels[face]+': '+(latestConcept.palette?.[face]||'#373327');chip.style.backgroundColor=latestConcept.palette?.[face]||'#373327';palette.append(chip);});
    const apply=document.createElement('button');apply.type='button';apply.className='primary-button';apply.textContent='Apply this concept';apply.addEventListener('click',function(){
     faces.forEach(function(face){if(/^#[0-9a-f]{6}$/i.test(latestConcept.palette?.[face]||''))studio.faceColors[face]=latestConcept.palette[face].toUpperCase();if(typeof latestConcept.sideText?.[face]==='string')studio.faceTexts[face]=latestConcept.sideText[face].slice(0,120);});
-    if(['rectangular','cube','tall','flat','rounded','custom'].includes(latestConcept.shape)){studio.shape=latestConcept.shape;$('shapePreset').value=studio.shape;manualShape=true;}
+    if(['rectangular','cube','tall','flat','rounded','bottle','label-sheet','display','custom'].includes(latestConcept.shape)){studio.shape=latestConcept.shape;$('shapePreset').value=studio.shape;manualShape=true;}
     const category=state.catalog.categories.find(function(c){return c.id===state.category;});
     if(category?.materials.includes(latestConcept.material))$('materialSelect').value=latestConcept.material;
     if(category?.finishes.includes(latestConcept.finish))$('finishSelect').value=latestConcept.finish;
