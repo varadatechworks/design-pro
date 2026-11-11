@@ -397,6 +397,15 @@ function initStudioEnhancements(){
  $('shapePreset').value=studio.shape;
  $('shapePreset').addEventListener('change',function(){studio.shape=$('shapePreset').value;manualShape=true;updateModel();});
  $('faceSelector').addEventListener('click',function(event){const button=event.target.closest('[data-face]');if(button)selectFace(button.dataset.face);});
+ $('faceSelector').addEventListener('keydown',function(event){
+  const current=faces.indexOf(studio.selectedFace);let next=current;
+  if(event.key==='ArrowRight'||event.key==='ArrowDown')next=(current+1)%faces.length;
+  else if(event.key==='ArrowLeft'||event.key==='ArrowUp')next=(current-1+faces.length)%faces.length;
+  else if(event.key==='Home')next=0;
+  else if(event.key==='End')next=faces.length-1;
+  else return;
+  event.preventDefault();selectFace(faces[next]);$('faceTab-'+faces[next]).focus();
+ });
  colourInput.addEventListener('input',function(){studio.faceColors[studio.selectedFace]=colourInput.value.toUpperCase();updateModel();});
  fontColorInput.addEventListener('input',function(){typographyFor(studio.selectedFace).fontColor=fontColorInput.value.toUpperCase();updateModel();});
  textInput.addEventListener('input',function(){studio.faceTexts[studio.selectedFace]=textInput.value.slice(0,120);$('faceTextCount').textContent=textInput.value.length+' / 120';updateModel();});
