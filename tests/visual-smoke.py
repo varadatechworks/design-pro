@@ -120,6 +120,8 @@ def page_setup(browser,viewport,role):
  page.wait_for_timeout(60)
  frame=page.locator('.face.front .face-artwork-frame')
  assert frame.count()==1
+ assert frame.locator('img').get_attribute('draggable')=='false'
+ assert frame.locator('img').evaluate("(el)=>getComputedStyle(el).pointerEvents")=='auto'
  # Return the model to a front-facing view so the overlay is not occluded by another 3D face.
  page.locator('#viewFront').click()
  frame.scroll_into_view_if_needed()
