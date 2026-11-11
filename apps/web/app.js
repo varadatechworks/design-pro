@@ -314,7 +314,7 @@ function initStudioEnhancements(){
    let text=node.querySelector('.face-custom-text');
    if(!text){text=document.createElement('span');text.className='face-custom-text';node.append(text);}
    const value=studio.faceTexts[face]||'';
-   text.textContent=value;text.hidden=!value;
+   text.textContent=value;text.hidden=!value;node.classList.toggle('has-custom-text',!!value);
    text.style.fontSize=String(typography.fontSize||16)+'px';
    text.style.fontFamily=fontFamilies[typography.fontFamily]||fontFamilies.serif;
    text.style.fontStyle=typography.fontStyle||'normal';
