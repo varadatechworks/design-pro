@@ -81,7 +81,7 @@ async function localDesignConcept({brief,categoryId,material,finish,dimensions})
  try{result=await response.json();}catch{throw httpError(502,'The local AI service returned an unreadable response.');}
  let concept;
  try{concept=JSON.parse(String(result.response||''));}catch{throw httpError(502,'The local AI response was not valid structured JSON. Try a shorter or clearer design brief.');}
- const cleanText=(value,max)=>String(value??'').replace(/[<>]/g,'').replace(/\s+/g,' ').trim().slice(0,max);
+ const cleanText=(value,max)=>String(value??'').replace(/<[^>]*>/g,'').replace(/\s+/g,' ').trim().slice(0,max);
  const faces=['front','back','left','right','top','bottom'];
  const fallback=['#24344D','#D8C4A5','#354A59','#B07B55','#172538','#E8E0D5'];
  const palette={};
