@@ -352,7 +352,7 @@ function initStudioEnhancements(){
   if(file.size>5*1024*1024)return notify('Custom SVG must be smaller than 5 MB.',true);
   if(!/\.svg$/i.test(file.name))return notify('For a custom shape preview, export the outline as SVG first.',true);
   try{
-   const raw=await file.text();customShapeDataUrl=safeSvg(raw);studio.customShapeFileName=file.name;studio.shape='custom';manualShape=true;$('shapePreset').value='custom';
+   const raw=await file.text();customShapeDataUrl=safeSvg(raw);studio.customShapeFileName=file.name.slice(0,120);studio.shape='custom';manualShape=true;$('shapePreset').value='custom';
    $('customShapeThumb').src=customShapeDataUrl;$('customShapeThumb').hidden=false;
    $('shapeImportStatus').textContent='Loaded '+file.name+' as a 2D shape reference. The preview uses a concept overlay; a 3D mesh/dieline still needs engineering validation.';
    updateModel();notify('Custom SVG shape reference loaded locally.');
@@ -384,7 +384,7 @@ function initStudioEnhancements(){
     $('artworkImportStatus').textContent='CDR file recognised. CorelDRAW uses a proprietary format; export as SVG or PDF for reliable dimension and text extraction. This file has not been uploaded.';
    }else throw new Error('Supported formats: CDR, AI, EPS, PDF, SVG, PNG, JPG, WEBP and TIFF.');
    if(previewData)artworkByFace[face]=previewData;
-   studio.artworkFiles[face]={fileName:file.name,sizeBytes:file.size,mimeType:file.type||ext};
+   studio.artworkFiles[face]={fileName:file.name.slice(0,180),sizeBytes:file.size,mimeType:(file.type||ext).slice(0,100)};
    let message='Selected '+file.name+'. ';
    if(widthMm&&heightMm)message+=setDetectedDimensions(widthMm,heightMm,source);
    else if(ext==='cdr')message+='Export to SVG/PDF to extract dimensions and preview.';
