@@ -51,6 +51,14 @@ def page_setup(browser,viewport,role):
  page.wait_for_timeout(230)
  assert not errors,errors
  assert page.locator('#designStudioControls').count()==1
+ page.locator('#productSelect').select_option('corporate-gift')
+ assert page.locator('.product-cube').get_attribute('data-shape')=='bottle'
+ page.locator('#productSelect').select_option('labels')
+ assert page.locator('.product-cube').get_attribute('data-shape')=='label-sheet'
+ page.locator('#productSelect').select_option('display')
+ assert page.locator('.product-cube').get_attribute('data-shape')=='display'
+ page.locator('#productSelect').select_option('welcome-kit')
+ assert page.locator('.product-cube').get_attribute('data-shape')=='rectangular'
  page.locator('[data-face="back"]').click()
  page.locator('#faceColorInput').fill('#234567')
  assert page.locator('.product-cube').evaluate("(el)=>el.style.getPropertyValue('--face-back')")=='#234567'
