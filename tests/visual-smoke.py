@@ -59,6 +59,15 @@ def page_setup(browser,viewport,role):
  page.locator('#stateSelect').select_option('KA')
  page.locator('#destinationCountInput').fill('2')
  page.locator('#shipInput').uncheck()
+ delivery_payload=page.evaluate("()=>JSON.parse([...window.__requests].filter(x=>x.path.endsWith('/estimate')).at(-1).body)")
+ assert delivery_payload['destinationState']=='KA'
+ assert delivery_payload['destinationCount']==2
+ assert delivery_payload['shipping'] is False
+ page.locator('#faceTab-front').focus()
+ page.keyboard.press('End')
+ assert page.locator('#faceTab-bottom').get_attribute('aria-selected')=='true'
+ page.keyboard.press('Home')
+ assert page.locator('#faceTab-front').get_attribute('aria-selected')=='true'
  page.locator('#productSelect').select_option('corporate-gift')
  assert page.locator('.product-cube').get_attribute('data-shape')=='bottle'
  page.locator('#productSelect').select_option('labels')
