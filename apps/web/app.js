@@ -490,7 +490,7 @@ function initStudioEnhancements(){
   notify('Image added to the '+labels[face].toLowerCase()+' side. It is a local preview only.');
  }
  cube.addEventListener('dragover',function(event){
-  if(event.dataTransfer?.types?.includes('Files')||Array.from(event.dataTransfer?.files||[]).some(file=>file.type.startsWith('image/')||/\\.svg$/i.test(file.name))){event.preventDefault();const face=event.target.closest('.face');if(face)face.classList.add('face-drop-target');}
+  if(event.dataTransfer?.types?.includes('Files')||Array.from(event.dataTransfer?.files||[]).some(file=>file.type.startsWith('image/')||/\.svg$/i.test(file.name))){event.preventDefault();const face=event.target.closest('.face');if(face)face.classList.add('face-drop-target');}
  });
  cube.addEventListener('dragleave',function(event){const face=event.target.closest('.face');if(face)face.classList.remove('face-drop-target');});
  cube.addEventListener('drop',async function(event){
