@@ -4,7 +4,7 @@
 
 The storefront design studio now has:
 
-- A shape selector with rectangular, cube, tall, flat and rounded concept profiles.
+- A shape selector with rectangular, cube, tall, flat, rounded, bottle/cylinder, label-sheet and display-stand concept profiles. Product categories choose a sensible starting profile.
 - Dimension-aware proportions: changing length, width or height updates the concept model.
 - Six independently editable sides: front, back, left, right, top and bottom.
 - Per-side colour, text, text size and alignment.
