@@ -13,6 +13,8 @@ const baseDesign={
  fontSize:18,textAlign:'left',
  customShapeFileName:'outline.svg',
  artworkFiles:{front:{fileName:'brand.svg',sizeBytes:2048,mimeType:'image/svg+xml'}},
+ faceTypography:{back:{fontFamily:'sans',fontStyle:'italic',fontColor:'#ffffff',fontWeight:'800',fontSize:24,textAlign:'right'}},
+ artworkPositions:{front:{left:12.5,top:18,width:44,height:55}},
  aiConcept:'Autumn welcome'
 };
 
@@ -25,6 +27,12 @@ test('estimate validates and persists six-side design metadata without artwork b
  assert.equal(result.config.designStudio.artworkFiles.front.sizeBytes,2048);
  assert.equal(result.config.designStudio.aiConcept,'Autumn welcome');
  assert.equal(Object.keys(result.config.designStudio.faceColors).length,6);
+ assert.equal(result.config.designStudio.faceTypography.back.fontFamily,'sans');
+ assert.equal(result.config.designStudio.faceTypography.back.fontColor,'#FFFFFF');
+ assert.equal(result.config.designStudio.faceTypography.back.fontWeight,'800');
+ assert.deepEqual(result.config.designStudio.artworkPositions.front,{left:12.5,top:18,width:44,height:55});
+ assert.throws(()=>estimate({categoryId:'rigid-box',quantity:12,designStudio:{...baseDesign,faceTypography:{back:{fontFamily:'comic-sans'}}}}));
+ assert.throws(()=>estimate({categoryId:'rigid-box',quantity:12,designStudio:{...baseDesign,artworkPositions:{front:{left:95,top:10,width:20,height:50}}}}));
  const bottle=estimate({categoryId:'corporate-gift',quantity:2,designStudio:{...baseDesign,shape:'bottle'}});
  assert.equal(bottle.config.designStudio.shape,'bottle');
  for(const invalid of [
