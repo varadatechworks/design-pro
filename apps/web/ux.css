@@ -290,7 +290,7 @@ button{cursor:pointer}
 .face-artwork-upload .designer-link{margin-bottom:9px;white-space:nowrap}
 #faceArtworkStatus{padding:8px 10px;background:#f2eee8;border-radius:3px}
 .product-cube .face-artwork-frame{position:absolute!important;z-index:8!important;box-sizing:border-box;border:1px dashed #ffffffb5;border-radius:2px;cursor:move;touch-action:none;user-select:none}
-.product-cube .face-artwork-frame .face-artwork{position:absolute!important;inset:0!important;width:100%!important;height:100%!important;max-width:none!important;max-height:none!important;object-fit:contain;pointer-events:none;filter:drop-shadow(0 1px 2px #0003)}
+.product-cube .face-artwork-frame .face-artwork{position:absolute!important;inset:0!important;width:100%!important;height:100%!important;max-width:none!important;max-height:none!important;object-fit:contain;pointer-events:auto;filter:drop-shadow(0 1px 2px #0003)}
 .face-artwork-resize{position:absolute!important;right:-7px;bottom:-7px;width:16px;height:16px;min-width:16px;min-height:16px;padding:0;border:2px solid #fff;border-radius:50%;background:#b87555;box-shadow:0 1px 4px #0005;cursor:nwse-resize;touch-action:none;z-index:10!important}
 .product-cube .face.drop-target,.product-cube .face.face-drop-target{outline:2px dashed #fff;outline-offset:-7px}
 .delivery-options{padding:14px 14px 12px;margin:18px 0 22px;background:#faf8f5;border:1px solid #e9e3dd;border-radius:4px}
