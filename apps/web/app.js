@@ -267,7 +267,7 @@ function initStudioEnhancements(){
  const swatches=document.querySelector('.swatches');
  if(swatches)swatches.remove();
  const studio=state.designStudio;
- const colourInput=$('faceColorInput'),textInput=$('faceTextInput'),sizeInput=$('faceFontSize'),alignInput=$('faceTextAlign');
+ const colourInput=$('faceColorInput'),fontColorInput=$('faceFontColor'),textInput=$('faceTextInput'),fontFamilyInput=$('faceFontFamily'),fontStyleInput=$('faceFontStyle'),fontWeightInput=$('faceFontWeight'),sizeInput=$('faceFontSize'),alignInput=$('faceTextAlign');
  function safeSvg(raw){
   const doc=new DOMParser().parseFromString(raw,'image/svg+xml');
   if(doc.querySelector('parsererror')||!doc.documentElement||doc.documentElement.localName!=='svg')throw new Error('The selected SVG is not valid.');
@@ -294,22 +294,49 @@ function initStudioEnhancements(){
   $('lengthInput').value=String(Math.round(widthMm));$('widthInput').value=String(Math.round(heightMm));requestEstimate();
   return 'Suggested size: '+Math.round(widthMm)+' × '+Math.round(heightMm)+' mm ('+source+'). Confirm the physical dimensions before requesting a quote.';
  }
+ function typographyFor(face){
+  const defaults={fontFamily:'serif',fontStyle:'normal',fontColor:'#F4E6CF',fontWeight:'600',fontSize:16,textAlign:'center'};
+  if(!studio.faceTypography)studio.faceTypography={};
+  if(!studio.faceTypography[face])studio.faceTypography[face]=Object.assign({},defaults);
+  return studio.faceTypography[face];
+ }
+ function artworkPositionFor(face){
+  const defaults={left:20,top:18,width:60,height:60};
+  if(!studio.artworkPositions)studio.artworkPositions={};
+  if(!studio.artworkPositions[face])studio.artworkPositions[face]=Object.assign({},defaults);
+  return studio.artworkPositions[face];
+ }
  function renderFaceDesign(){
+  const fontFamilies={serif:'Georgia, "Times New Roman", serif',sans:'Arial, Helvetica, sans-serif',display:'Impact, Haettenschweiler, sans-serif',mono:'"Courier New", monospace'};
   faces.forEach(function(face){
    const node=document.querySelector('.product-cube .face.'+face);
    if(!node)return;
+   const typography=typographyFor(face);
    let text=node.querySelector('.face-custom-text');
    if(!text){text=document.createElement('span');text.className='face-custom-text';node.append(text);}
    const value=studio.faceTexts[face]||'';
    text.textContent=value;text.hidden=!value;
-   text.style.fontSize=String(studio.fontSize||16)+'px';text.style.textAlign=studio.textAlign||'center';
-   text.style.justifyContent=(studio.textAlign==='left'?'flex-start':studio.textAlign==='right'?'flex-end':'center');
+   text.style.fontSize=String(typography.fontSize||16)+'px';
+   text.style.fontFamily=fontFamilies[typography.fontFamily]||fontFamilies.serif;
+   text.style.fontStyle=typography.fontStyle||'normal';
+   text.style.fontWeight=String(typography.fontWeight||'600');
+   text.style.color=typography.fontColor||'#F4E6CF';
+   text.style.textAlign=typography.textAlign||'center';
+   text.style.justifyContent=(typography.textAlign==='left'?'flex-start':typography.textAlign==='right'?'flex-end':'center');
    node.classList.toggle('has-artwork',!!artworkByFace[face]);
-   let art=node.querySelector('.face-artwork');
+   let frame=node.querySelector('.face-artwork-frame');
    if(artworkByFace[face]){
-    if(!art){art=document.createElement('img');art.className='face-artwork';art.alt='Imported artwork concept on '+labels[face]+' side';node.append(art);}
-    art.src=artworkByFace[face];
-   }else if(art)art.remove();
+    if(!frame){
+     frame=document.createElement('div');frame.className='face-artwork-frame';frame.dataset.face=face;
+     const art=document.createElement('img');art.className='face-artwork';art.alt='Imported artwork concept on '+labels[face]+' side';
+     const handle=document.createElement('button');handle.type='button';handle.className='face-artwork-resize';handle.setAttribute('aria-label','Resize '+labels[face]+' artwork');handle.title='Drag to resize';
+     frame.append(art,handle);node.append(frame);
+    }
+    frame.querySelector('img').src=artworkByFace[face];
+    const position=artworkPositionFor(face);
+    frame.style.left=position.left+'%';frame.style.top=position.top+'%';
+    frame.style.width=position.width+'%';frame.style.height=position.height+'%';
+   }else if(frame)frame.remove();
   });
   const topDefault=document.querySelector('.product-cube .face.top > span:not(.face-custom-text)');
   if(topDefault)topDefault.hidden=!!studio.faceTexts.top;
@@ -344,10 +371,22 @@ function initStudioEnhancements(){
  function selectFace(face){
   if(!faces.includes(face))return;
   studio.selectedFace=face;
-  document.querySelectorAll('#faceSelector [data-face]').forEach(function(button){button.setAttribute('aria-pressed',String(button.dataset.face===face));});
-  colourInput.value=studio.faceColors[face]||'#373327';textInput.value=studio.faceTexts[face]||'';
-  sizeInput.value=String(studio.fontSize||16);alignInput.value=studio.textAlign||'center';
+  document.querySelectorAll('#faceSelector [data-face]').forEach(function(button){
+   const selected=button.dataset.face===face;button.setAttribute('aria-selected',String(selected));button.setAttribute('tabindex',selected?'0':'-1');
+  });
+  const typography=typographyFor(face);
+  colourInput.value=studio.faceColors[face]||'#373327';
+  fontColorInput.value=typography.fontColor||'#F4E6CF';
+  textInput.value=studio.faceTexts[face]||'';
+  fontFamilyInput.value=typography.fontFamily||'serif';
+  fontStyleInput.value=typography.fontStyle||'normal';
+  fontWeightInput.value=String(typography.fontWeight||'600');
+  sizeInput.value=String(typography.fontSize||16);
+  alignInput.value=typography.textAlign||'center';
+  $('activeFaceTitle').textContent=labels[face]+' side';
+  $('faceEditorPanel').setAttribute('aria-labelledby','faceTab-'+face);
   $('faceTextCount').textContent=textInput.value.length+' / 120';
+  $('faceArtworkStatus').textContent=artworkByFace[face]?'Image ready. Drag it on the 3D side to position; drag the corner handle to resize.':'Upload an image, then drag it directly on the 3D side to position it. Use the corner handle to resize.';
  }
  function defaultShapeForCategory(){
   const category=state.catalog?.categories?.find(function(c){return c.id===state.category;});
@@ -359,10 +398,24 @@ function initStudioEnhancements(){
  $('shapePreset').addEventListener('change',function(){studio.shape=$('shapePreset').value;manualShape=true;updateModel();});
  $('faceSelector').addEventListener('click',function(event){const button=event.target.closest('[data-face]');if(button)selectFace(button.dataset.face);});
  colourInput.addEventListener('input',function(){studio.faceColors[studio.selectedFace]=colourInput.value.toUpperCase();updateModel();});
+ fontColorInput.addEventListener('input',function(){typographyFor(studio.selectedFace).fontColor=fontColorInput.value.toUpperCase();updateModel();});
  textInput.addEventListener('input',function(){studio.faceTexts[studio.selectedFace]=textInput.value.slice(0,120);$('faceTextCount').textContent=textInput.value.length+' / 120';updateModel();});
- sizeInput.addEventListener('input',function(){studio.fontSize=Math.max(10,Math.min(32,Number(sizeInput.value)||16));updateModel();});
- alignInput.addEventListener('change',function(){studio.textAlign=alignInput.value;updateModel();});
+ fontFamilyInput.addEventListener('change',function(){typographyFor(studio.selectedFace).fontFamily=fontFamilyInput.value;updateModel();});
+ fontStyleInput.addEventListener('change',function(){typographyFor(studio.selectedFace).fontStyle=fontStyleInput.value;updateModel();});
+ fontWeightInput.addEventListener('change',function(){typographyFor(studio.selectedFace).fontWeight=fontWeightInput.value;updateModel();});
+ sizeInput.addEventListener('input',function(){typographyFor(studio.selectedFace).fontSize=Math.max(10,Math.min(48,Number(sizeInput.value)||16));updateModel();});
+ alignInput.addEventListener('change',function(){typographyFor(studio.selectedFace).textAlign=alignInput.value;updateModel();});
  $('clearFaceText').addEventListener('click',function(){studio.faceTexts[studio.selectedFace]='';textInput.value='';$('faceTextCount').textContent='0 / 120';updateModel();});
+ $('faceImageUpload').addEventListener('change',async function(event){
+  const file=event.target.files&&event.target.files[0];if(!file)return;
+  try{await loadFaceImage(file,studio.selectedFace);}catch(error){$('faceArtworkStatus').textContent=error.message||'Could not load this image.';notify(error.message||'Could not load this image.',true);}
+  event.target.value='';
+ });
+ $('clearFaceArtwork').addEventListener('click',function(){
+  const face=studio.selectedFace;delete artworkByFace[face];delete studio.artworkFiles[face];studio.artworkPositions[face]={left:20,top:18,width:60,height:60};
+  $('faceImageUpload').value='';$('faceArtworkStatus').textContent='Image removed from the '+labels[face].toLowerCase()+' side preview.';
+  updateModel();requestEstimate();
+ });
  $('customShapeUpload').addEventListener('change',async function(event){
   const file=event.target.files&&event.target.files[0];if(!file)return;
   if(file.size>5*1024*1024)return notify('Custom SVG must be smaller than 5 MB.',true);
@@ -399,7 +452,7 @@ function initStudioEnhancements(){
    }else if(ext==='cdr'){
     $('artworkImportStatus').textContent='CDR file recognised. CorelDRAW uses a proprietary format; export as SVG or PDF for reliable dimension and text extraction. This file has not been uploaded.';
    }else throw new Error('Supported formats: CDR, AI, EPS, PDF, SVG, PNG, JPG, WEBP and TIFF.');
-   if(previewData)artworkByFace[face]=previewData;
+   if(previewData){artworkByFace[face]=previewData;if(!studio.artworkPositions?.[face])studio.artworkPositions[face]={left:20,top:18,width:60,height:60};}
    studio.artworkFiles[face]={fileName:file.name.slice(0,180),sizeBytes:file.size,mimeType:(file.type||ext).slice(0,100)};
    let message='Selected '+file.name+'. ';
    if(widthMm&&heightMm)message+=setDetectedDimensions(widthMm,heightMm,source);
@@ -410,7 +463,62 @@ function initStudioEnhancements(){
    $('artworkImportStatus').textContent=message;updateModel();notify('Artwork inspected for the '+labels[face].toLowerCase()+' side. Review the detected size before pricing.');
   }catch(error){$('artworkImportStatus').textContent=error.message||'Could not inspect the selected artwork.';notify(error.message||'Could not inspect the selected artwork.',true);}
  });
- $('productSelect').addEventListener('change',function(){defaultShapeForCategory();updateModel();});
+  function clampPercent(value,min,max){return Math.max(min,Math.min(max,value));}
+ async function loadFaceImage(file,face){
+  if(!faces.includes(face))face=studio.selectedFace;
+  if(!file||file.size>15*1024*1024)throw new Error('Choose an image smaller than 15 MB.');
+  const ext=(file.name.split('.').pop()||'').toLowerCase();
+  let preview='';
+  if(ext==='svg'||file.type==='image/svg+xml')preview=safeSvg(await file.text());
+  else if(['png','jpg','jpeg','webp'].includes(ext)||['image/png','image/jpeg','image/webp'].includes(file.type)){
+   const bitmap=await createImageBitmap(file);bitmap.close?.();preview=await readDataUrl(file);
+  }else throw new Error('Use PNG, JPG, WEBP or SVG for a side image.');
+  artworkByFace[face]=preview;
+  studio.artworkFiles[face]={fileName:file.name.slice(0,180),sizeBytes:file.size,mimeType:(file.type||ext).slice(0,100)};
+  if(!studio.artworkPositions?.[face])studio.artworkPositions[face]={left:20,top:18,width:60,height:60};
+  $('faceArtworkStatus').textContent=file.name+' added to the '+labels[face].toLowerCase()+' side. Drag it on the preview to position; use the corner handle to resize.';
+  updateModel();requestEstimate();
+  notify('Image added to the '+labels[face].toLowerCase()+' side. It is a local preview only.');
+ }
+ cube.addEventListener('dragover',function(event){
+  if(Array.from(event.dataTransfer?.files||[]).some(file=>file.type.startsWith('image/'))){event.preventDefault();const face=event.target.closest('.face');if(face)face.classList.add('face-drop-target');}
+ });
+ cube.addEventListener('dragleave',function(event){const face=event.target.closest('.face');if(face)face.classList.remove('face-drop-target');});
+ cube.addEventListener('drop',async function(event){
+  const file=Array.from(event.dataTransfer?.files||[]).find(item=>item.type.startsWith('image/')||/\.svg$/i.test(item.name));
+  if(!file)return;
+  event.preventDefault();event.stopPropagation();
+  const faceNode=event.target.closest('.face');if(faceNode)faceNode.classList.remove('face-drop-target');
+  const face=faces.find(name=>faceNode?.classList.contains(name))||studio.selectedFace;
+  try{await loadFaceImage(file,face);selectFace(face);}catch(error){notify(error.message||'Could not place the dropped image.',true);}
+ });
+ let artworkGesture=null;
+ cube.addEventListener('pointerdown',function(event){
+  const frame=event.target.closest('.face-artwork-frame');if(!frame)return;
+  const face=frame.dataset.face,position=artworkPositionFor(face),faceNode=frame.parentElement;
+  artworkGesture={face,frame,pointerId:event.pointerId,mode:event.target.closest('.face-artwork-resize')?'resize':'move',startX:event.clientX,startY:event.clientY,faceWidth:Math.max(1,faceNode.clientWidth),faceHeight:Math.max(1,faceNode.clientHeight),start:{left:position.left,top:position.top,width:position.width,height:position.height}};
+  try{frame.setPointerCapture(event.pointerId);}catch{}
+  event.preventDefault();event.stopPropagation();
+ });
+ cube.addEventListener('pointermove',function(event){
+  if(!artworkGesture||event.pointerId!==artworkGesture.pointerId)return;
+  const gesture=artworkGesture,position=artworkPositionFor(gesture.face);
+  const dx=(event.clientX-gesture.startX)/gesture.faceWidth*100,dy=(event.clientY-gesture.startY)/gesture.faceHeight*100;
+  if(gesture.mode==='resize'){
+   position.width=clampPercent(gesture.start.width+dx,12,100-gesture.start.left);
+   position.height=clampPercent(gesture.start.height+dy,12,100-gesture.start.top);
+  }else{
+   position.left=clampPercent(gesture.start.left+dx,0,100-gesture.start.width);
+   position.top=clampPercent(gesture.start.top+dy,0,100-gesture.start.height);
+  }
+  gesture.frame.style.left=position.left+'%';gesture.frame.style.top=position.top+'%';
+  gesture.frame.style.width=position.width+'%';gesture.frame.style.height=position.height+'%';
+  event.preventDefault();event.stopPropagation();
+ });
+ function finishArtworkGesture(event){if(artworkGesture&&(!event||event.pointerId===artworkGesture.pointerId)){artworkGesture=null;if(event){event.preventDefault();event.stopPropagation();}}}
+ cube.addEventListener('pointerup',finishArtworkGesture);
+ cube.addEventListener('pointercancel',finishArtworkGesture);
+$('productSelect').addEventListener('change',function(){defaultShapeForCategory();updateModel();});
  ['materialSelect','finishSelect','lengthInput','widthInput','heightInput'].forEach(function(id){$(id).addEventListener('input',updateModel);$(id).addEventListener('change',updateModel);});
  document.querySelectorAll('.swatch').forEach(function(button){button.addEventListener('click',function(){faces.forEach(function(face){studio.faceColors[face]=state.boxColor;});selectFace(studio.selectedFace);updateModel();});});
  const slider=$('rotationSlider'),rotationValue=$('rotationValue'),toggle=$('view360Toggle');
