@@ -25,6 +25,8 @@ test('estimate validates and persists six-side design metadata without artwork b
  assert.equal(result.config.designStudio.artworkFiles.front.sizeBytes,2048);
  assert.equal(result.config.designStudio.aiConcept,'Autumn welcome');
  assert.equal(Object.keys(result.config.designStudio.faceColors).length,6);
+ const bottle=estimate({categoryId:'corporate-gift',quantity:2,designStudio:{...baseDesign,shape:'bottle'}});
+ assert.equal(bottle.config.designStudio.shape,'bottle');
  for(const invalid of [
   {...baseDesign,shape:'sphere'},
   {...baseDesign,faceColors:{...baseDesign.faceColors,front:'red'}},
