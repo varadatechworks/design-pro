@@ -18,7 +18,5 @@
 }
 @media(max-width:1050px) and (min-width:741px){
  .studio-shell{grid-template-columns:minmax(235px,.85fr) minmax(340px,1.15fr)}
- .estimate-panel{grid-column:1/-1;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px;align-items:start}
- .estimate-panel .estimate-head,.estimate-panel .est-description,.estimate-panel .delivery-options,.estimate-panel .price-label,.estimate-panel .price-value,.estimate-panel .price-per,.estimate-panel .quote-status,.estimate-panel .cost-breakdown,.estimate-panel .estimate-meta,.estimate-panel .estimate-action,.estimate-panel .trust-note,.estimate-panel .price-disclaimer{min-width:0}
- .estimate-panel .cost-breakdown{grid-column:1/-1}
+ .estimate-panel{grid-column:1/-1;display:block}
 }
