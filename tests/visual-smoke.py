@@ -94,6 +94,7 @@ def page_setup(browser,viewport,role):
  page.locator('#customShapeUpload').set_input_files(svg)
  page.wait_for_timeout(50)
  assert not page.locator('#customShapeThumb').is_hidden()
+ page.locator('.left-studio-details').first.click()
  page.locator('#artworkUpload').set_input_files(svg)
  page.wait_for_timeout(60)
  assert '200 × 150 mm' in page.locator('#artworkImportStatus').inner_text()
