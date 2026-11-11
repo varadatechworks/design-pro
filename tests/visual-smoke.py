@@ -56,6 +56,9 @@ def page_setup(browser,viewport,role):
  assert page.locator('#shapePreset').evaluate("(el)=>el.closest('.studio-controls')!==null")
  assert page.locator('#faceSelector').evaluate("(el)=>el.closest('.studio-center')!==null")
  assert page.locator('#faceSelector [role=tab]').count()==6
+ assert page.locator('#view360Toggle').count()==1
+ assert page.locator('#rotationSlider').count()==1
+ assert page.locator('#rotationValue').inner_text()=='331°'
  page.locator('#stateSelect').select_option('KA')
  page.locator('#destinationCountInput').fill('2')
  page.locator('#shipInput').uncheck()
@@ -96,9 +99,13 @@ def page_setup(browser,viewport,role):
  assert page.locator('#faceFontSize').input_value()=='24'
  page.locator('#shapePreset').select_option('cube')
  assert page.locator('.product-cube').get_attribute('data-shape')=='cube'
+ page.locator('#rotationSlider').fill('120')
+ assert page.locator('#rotationValue').inner_text()=='120°'
  page.locator('#view360Toggle').click()
  assert page.locator('#cubeScene').evaluate("(el)=>el.classList.contains('is-spinning')")
+ assert page.locator('#view360Toggle').get_attribute('aria-pressed')=='true'
  page.locator('#view360Toggle').click()
+ assert not page.locator('#cubeScene').evaluate("(el)=>el.classList.contains('is-spinning')")
  svg={"name":"outline.svg","mimeType":"image/svg+xml","buffer":b'<svg xmlns="http://www.w3.org/2000/svg" width="200mm" height="150mm" viewBox="0 0 200 150"><rect x="4" y="4" width="192" height="142" fill="none" stroke="#222"/><text x="10" y="20">Brand line</text></svg>'}
  page.locator('#customShapeUpload').set_input_files(svg)
  page.wait_for_timeout(50)
