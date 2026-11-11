@@ -267,7 +267,6 @@ function initStudioEnhancements(){
  if(swatches)swatches.remove();
  const viewButtons=document.querySelector('.view-buttons');
  if(viewButtons&&!$('view360Toggle'))viewButtons.insertAdjacentHTML('beforeend','<button type="button" id="view360Toggle" aria-pressed="false">360° view</button>');
- const previewTools=document.querySelector('.preview-tools');
  if(previewTools&&!$('rotationSlider'))previewTools.insertAdjacentHTML('beforeend','<label class="rotation-control" for="rotationSlider">Rotate <input id="rotationSlider" type="range" min="0" max="360" step="1" value="331"><output id="rotationValue">331°</output></label>');
  const studio=state.designStudio;
  const colourInput=$('faceColorInput'),fontColorInput=$('faceFontColor'),textInput=$('faceTextInput'),fontFamilyInput=$('faceFontFamily'),fontStyleInput=$('faceFontStyle'),fontWeightInput=$('faceFontWeight'),sizeInput=$('faceFontSize'),alignInput=$('faceTextAlign');
