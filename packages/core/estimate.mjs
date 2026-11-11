@@ -4,7 +4,7 @@ const money=(value,bps)=>{if(!Number.isSafeInteger(value)||value<0||!Number.isSa
 const sum=xs=>xs.reduce((a,b)=>{const n=a+b;if(!Number.isSafeInteger(n))throw new Error('Cost overflow');return n;},0);
 
 const DESIGN_FACES=['front','back','left','right','top','bottom'];
-const DESIGN_SHAPES=['rectangular','cube','tall','flat','rounded','custom'];
+const DESIGN_SHAPES=['rectangular','cube','tall','flat','rounded','bottle','label-sheet','display','custom'];
 function normalizeDesignStudio(value){
  if(value===undefined||value===null)return null;
  if(typeof value!=='object'||Array.isArray(value))throw new Error('Design studio settings must be an object');
