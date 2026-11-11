@@ -15,7 +15,7 @@ import {verifyCheckoutSignature,verifyWebhook} from '../../packages/skeleton/sig
 
 const WEB_ROOT=resolve(fileURLToPath(new URL('../web/',import.meta.url)));
 const PROD=process.env.NODE_ENV==='production';
-function httpError(code,message){return Object.assign(new Error(message),{status:code});}
+function httpError(code,message,publicMessage=false){return Object.assign(new Error(message),{status:code,publicMessage});}
 function safeJson(res,status,data){const body=JSON.stringify(data);res.writeHead(status,{'Content-Type':'application/json; charset=utf-8','Cache-Control':'no-store','X-Content-Type-Options':'nosniff','X-Frame-Options':'DENY','Referrer-Policy':'strict-origin-when-cross-origin'});res.end(body);}
 function rateLimit(rate,req,group,max){const k=(req.socket.remoteAddress||'?')+':'+group;const t=Date.now(),window=60_000,old=rate.get(k)||[];const valid=old.filter(x=>t-x<window);if(valid.length>=max)throw httpError(429,'Too many requests. Try again shortly.');valid.push(t);rate.set(k,valid);if(rate.size>50000)rate.clear();}
 async function body(req,max=80_000){
@@ -40,15 +40,16 @@ function ensurePayments(){if(process.env.PAYMENTS_ENABLED!=='true'||!process.env
 function requireVerifiedBuyer(actor){if((PROD||process.env.REQUIRE_VERIFIED_EMAIL_FOR_CHECKOUT==='true')&&!actor.email_verified)throw httpError(403,'Verify your email address before checkout. Please contact support if you did not receive an email.');}
 async function razorpay(path,{method='GET',data}={}){ensurePayments();const auth=Buffer.from(`${process.env.RAZORPAY_KEY_ID}:${process.env.RAZORPAY_KEY_SECRET}`).toString('base64');const response=await fetch('https://api.razorpay.com/v1'+path,{method,headers:{'Authorization':'Basic '+auth,'Content-Type':'application/json'},body:data?JSON.stringify(data):undefined,signal:AbortSignal.timeout(12000)});const out=await response.json();if(!response.ok)throw httpError(502,'Payment provider rejected the request');return out;}
 
+const localAiError=(code,message)=>httpError(code,message,true);
 async function localDesignConcept({brief,categoryId,material,finish,dimensions}){
- if(process.env.AI_PROVIDER!=='ollama')throw httpError(503,'Local AI is disabled. Set AI_PROVIDER=ollama in .env and start Ollama to enable concept generation.');
+ if(process.env.AI_PROVIDER!=='ollama')throw localAiError(503,'Local AI is disabled. Set AI_PROVIDER=ollama in .env and start Ollama to enable concept generation.');
  let base;
- try{base=new URL(process.env.OLLAMA_BASE_URL||'http://127.0.0.1:11434');}catch{throw httpError(503,'OLLAMA_BASE_URL must be a valid local Ollama URL.');}
- if(base.protocol!=='http:'||!['127.0.0.1','localhost','[::1]','::1'].includes(base.hostname)||base.username||base.password)throw httpError(503,'For safety, DesignPro only connects to an Ollama service on this computer (localhost).');
+ try{base=new URL(process.env.OLLAMA_BASE_URL||'http://127.0.0.1:11434');}catch{throw localAiError(503,'OLLAMA_BASE_URL must be a valid local Ollama URL.');}
+ if(base.protocol!=='http:'||!['127.0.0.1','localhost','[::1]','::1'].includes(base.hostname)||base.username||base.password)throw localAiError(503,'For safety, DesignPro only connects to an Ollama service on this computer (localhost).');
  const model=String(process.env.OLLAMA_MODEL||'llama3.2:3b').trim();
- if(!/^[a-zA-Z0-9_.:/-]{1,80}$/.test(model))throw httpError(503,'OLLAMA_MODEL contains unsupported characters.');
+ if(!/^[a-zA-Z0-9_.:/-]{1,80}$/.test(model))throw localAiError(503,'OLLAMA_MODEL contains unsupported characters.');
  const category=CATEGORIES.find(x=>x.id===categoryId);
- if(!category)throw httpError(400,'Choose a valid product category before generating a concept.');
+ if(!category)throw localAiError(400,'Choose a valid product category before generating a concept.');
  const safeMaterial=category.materials.includes(material)?material:category.materials[0];
  const safeFinish=category.finishes.includes(finish)?finish:category.finishes[0];
  const dims=dimensions&&typeof dimensions==='object'?{
@@ -73,14 +74,15 @@ async function localDesignConcept({brief,categoryId,material,finish,dimensions})
  try{
   response=await fetch(new URL('/api/generate',base),{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({model,prompt,stream:false,format:'json',options:{temperature:0.55}}),signal:AbortSignal.timeout(60000)});
  }catch(error){
-  if(error?.name==='TimeoutError')throw httpError(504,'The local AI model took too long. Try a smaller Ollama model or a shorter brief.');
-  throw httpError(503,'Cannot reach local Ollama. Start Ollama and confirm that the selected model is installed.');
+  if(error?.name==='TimeoutError')throw localAiError(504,'The local AI model took too long. Try a smaller Ollama model or a shorter brief.');
+  throw localAiError(503,'Cannot reach local Ollama. Start Ollama and confirm that the selected model is installed.');
  }
- if(!response.ok)throw httpError(502,'Ollama could not generate a design concept. Check the model name and local Ollama logs.');
+ if(!response.ok)throw localAiError(502,'Ollama could not generate a design concept. Check the model name and local Ollama logs.');
  let result;
- try{result=await response.json();}catch{throw httpError(502,'The local AI service returned an unreadable response.');}
+ try{result=await response.json();}catch{throw localAiError(502,'The local AI service returned an unreadable response.');}
  let concept;
- try{concept=JSON.parse(String(result.response||''));}catch{throw httpError(502,'The local AI response was not valid structured JSON. Try a shorter or clearer design brief.');}
+ try{concept=JSON.parse(String(result.response||''));}catch{throw localAiError(502,'The local AI response was not valid structured JSON. Try a shorter or clearer design brief.');}
+ if(!concept||typeof concept!=='object'||Array.isArray(concept))throw localAiError(502,'The local AI response must be a JSON object.');
  const cleanText=(value,max)=>String(value??'').replace(/<[^>]*>/g,'').replace(/\s+/g,' ').trim().slice(0,max);
  const faces=['front','back','left','right','top','bottom'];
  const fallback=['#24344D','#D8C4A5','#354A59','#B07B55','#172538','#E8E0D5'];
@@ -401,7 +403,7 @@ export function createServer(db=migrate(openDb())){
    requireStaff(db,req,'audit','view');return safeJson(res,200,{events:list(db,'SELECT * FROM audit_events ORDER BY at DESC LIMIT 200')});
   }
   throw httpError(404,'Endpoint not found');
- }catch(e){const requestId=newId('req');const raw=String(e?.message||'');const persistenceError=/SQLITE_|database is locked|database disk|FOREIGN KEY constraint failed|malformed database|no such table/i.test(raw);const status=Number(e.status)||(/UNIQUE constraint failed/.test(raw)?409:persistenceError||e instanceof TypeError||e instanceof ReferenceError?500:400);if(status>=500)console.error('DesignPro request failed',requestId,raw);safeJson(res,status,{error:status>=500?'Something went wrong while processing your request. Please try again or contact support.':(/UNIQUE constraint failed/.test(raw)?'This record already exists. Refresh and try again.':raw||'Please check the submitted details.'),requestId});}}
+ }catch(e){const requestId=newId('req');const raw=String(e?.message||'');const persistenceError=/SQLITE_|database is locked|database disk|FOREIGN KEY constraint failed|malformed database|no such table/i.test(raw);const status=Number(e.status)||(/UNIQUE constraint failed/.test(raw)?409:persistenceError||e instanceof TypeError||e instanceof ReferenceError?500:400);if(status>=500)console.error('DesignPro request failed',requestId,raw);safeJson(res,status,{error:status>=500&&!e.publicMessage?'Something went wrong while processing your request. Please try again or contact support.':(/UNIQUE constraint failed/.test(raw)?'This record already exists. Refresh and try again.':raw||'Please check the submitted details.'),requestId});}}
  return http.createServer(handler);
 }
 const isMain=process.argv[1]&&resolve(process.argv[1])===fileURLToPath(import.meta.url);
