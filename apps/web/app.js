@@ -398,7 +398,7 @@ function initStudioEnhancements(){
  toggle.addEventListener('click',function(){const active=!scene.classList.contains('is-spinning');scene.classList.toggle('is-spinning',active);toggle.setAttribute('aria-pressed',String(active));toggle.textContent=active?'Stop rotation':'360° view';});
  scene.addEventListener('pointerdown',function(){scene.classList.remove('is-spinning');toggle.setAttribute('aria-pressed','false');toggle.textContent='360° view';});
  scene.addEventListener('pointermove',syncRotation);
- ['viewFront','viewAngle','viewTop'].forEach(function(id){$(id).addEventListener('click',syncRotation);});
+ ['viewFront','viewAngle','viewTop'].forEach(function(id){$(id).addEventListener('click',function(){scene.classList.remove('is-spinning');toggle.setAttribute('aria-pressed','false');toggle.textContent='360° view';syncRotation();});});
  const aiStatus=$('aiConnectionStatus');
  aiStatus.textContent=state.aiProvider==='ollama'?'Ollama selected · model availability is checked when you generate.':'Local AI is not enabled. Set AI_PROVIDER=ollama in .env and start Ollama to enable it.';
  $('generateAiConcept').addEventListener('click',async function(){
