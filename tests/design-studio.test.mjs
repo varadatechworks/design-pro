@@ -88,7 +88,7 @@ test('local Ollama concept output is constrained to compatible design options',a
   assert.equal(result.json.palette.front,'#102030');
   assert.equal(result.json.material,'greyboard');
   assert.equal(result.json.finish,'foil');
-  assert.equal(result.json.sideText.back,'scriptthanksscript');
+  assert.equal(result.json.sideText.back,'thanks');
   assert.equal(result.json.questions.length,1);
   assert.match(captured.prompt,/CUSTOMER BRIEF START/);
   assert.equal(captured.model,'test-model');
