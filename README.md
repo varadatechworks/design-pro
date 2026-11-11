@@ -53,7 +53,7 @@ packages/skeleton/authorization.mjs, workflow.mjs, refunds.mjs, signatures.mjs
 apps/api/db.mjs -> local SQLite migrations and structured audit
 ```
 
-See `docs/APP_SKELETON_REUSE.md`, `docs/ARCHITECTURE.md`, `docs/REQUIREMENTS_COVERAGE.md`, `docs/RELEASE_GATES.md`, and `docs/OPERATIONS.md`.
+See `docs/APP_SKELETON_REUSE.md`, `docs/ARCHITECTURE.md`, `docs/REQUIREMENTS_COVERAGE.md`, `docs/RELEASE_GATES.md`, and `docs/OPERATIONS.md`. See [`docs/PRODUCT_DESIGN_STUDIO_2026-11-11.md`](docs/PRODUCT_DESIGN_STUDIO_2026-11-11.md) for the expanded side-by-side configurator, local AI setup and artwork-import limitations.
 
 ## Caution: demonstration prices and visualisations
 

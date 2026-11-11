@@ -2,7 +2,7 @@ const $=id=>document.getElementById(id);
 const INR=v=>new Intl.NumberFormat('en-IN',{style:'currency',currency:'INR',maximumFractionDigits:2}).format((Number(v)||0)/100);
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const el=(tag,cls='',html='')=>{const e=document.createElement(tag);if(cls)e.className=cls;e.innerHTML=html;return e;};
-const state={catalog:null,category:'welcome-kit',filter:'all',estimate:null,user:null,csrf:null,authSubmitting:false,authReturnFocus:null,authMode:'login',workspaceTab:'quotes',boxColor:'#373327',rotation:{x:-22,y:-29},refreshTimer:null,uatEnabled:false,paymentsEnabled:false,workspaceInitialized:false};
+const state={catalog:null,category:'welcome-kit',filter:'all',estimate:null,user:null,csrf:null,authSubmitting:false,authReturnFocus:null,authMode:'login',workspaceTab:'quotes',boxColor:'#373327',rotation:{x:-22,y:-29},refreshTimer:null,uatEnabled:false,paymentsEnabled:false,aiProvider:'disabled',designStudio:{shape:'rectangular',selectedFace:'front',faceColors:{front:'#373327',back:'#373327',left:'#373327',right:'#373327',top:'#373327',bottom:'#373327'},faceTexts:{front:'',back:'',left:'',right:'',top:'',bottom:''},fontSize:16,textAlign:'center',customShapeFileName:'',artworkFiles:{},aiConcept:null},workspaceInitialized:false};
 let toastTimer;
 const notify=(message,error=false)=>{const t=$('toast');t.replaceChildren();const label=document.createElement('span');label.textContent=message;const dismiss=document.createElement('button');dismiss.type='button';dismiss.className='toast-dismiss';dismiss.textContent='×';dismiss.setAttribute('aria-label','Dismiss notification');dismiss.addEventListener('click',()=>{t.hidden=true;clearTimeout(toastTimer)});t.append(label,dismiss);t.className='toast-v2 '+(error?'toast-error':'toast-success');t.setAttribute('role',error?'alert':'status');t.setAttribute('aria-live',error?'assertive':'polite');t.hidden=false;clearTimeout(toastTimer);toastTimer=setTimeout(()=>t.hidden=true,8000)};
 async function api(path,options={}){const cfg={credentials:'same-origin',headers:{'Content-Type':'application/json',...(state.csrf?{'X-CSRF-Token':state.csrf}:{})},...options};if(cfg.body&&typeof cfg.body!=='string')cfg.body=JSON.stringify(cfg.body);let response;try{response=await fetch('/api/v1'+path,cfg)}catch{throw new Error('Cannot connect to DesignPro. Check your connection and try again.')}let data;try{data=await response.json()}catch{throw new Error('The service returned an unreadable response. Try again.')}if(!response.ok){const msg=data.error||`Request failed (${response.status})`;if(response.status===401&&state.user){state.user=null;state.csrf=null;updateAccount();notify('Your session has expired. Please sign in again.',true);loadWorkspace();}throw new Error(msg+(data.requestId?` · Reference ${data.requestId}`:''))}return data;}
@@ -31,7 +31,7 @@ function categoryCards(){const container=$('categoryGrid');const q=$('categorySe
  container.innerHTML=filtered.map((c,i)=>{const p=palette[(state.catalog.categories.indexOf(c))%palette.length];return `<button class="category-card" data-category="${esc(c.id)}"><div class="cat-art" style="background:${p[0]};--prod1:${p[1]};--prod2:${p[2]};--prod3:${p[2]}">${categoryArtwork(c)}</div><div class="cat-info"><h3>${esc(c.name)}</h3><p>${esc(c.tag)}</p><div class="cat-footer"><span>${c.kind==='rfq'?'Expert quotation':'Custom made for you'}</span><strong>EXPLORE ↗</strong></div></div></button>`}).join('');}
 function kitContent(){const list=Object.entries(state.catalog.kitItems);$('kitGrid').innerHTML=list.map(([id,item])=>`<label class="kit-item"><input type="checkbox" value="${esc(id)}" ${['bottle','diary','pen','id','card'].includes(id)?'checked':''}>${esc(item.name)}</label>`).join('');$('kitGrid').querySelectorAll('input').forEach(x=>x.addEventListener('change',requestEstimate));}
 function chooseCategory(id,scroll=true){const c=state.catalog.categories.find(x=>x.id===id);if(!c)return;state.category=id;$('productSelect').value=id;fillSelect($('materialSelect'),c.materials.map(k=>({id:k,name:state.catalog.materials[k].name})));fillSelect($('finishSelect'),c.finishes.map(k=>({id:k,name:state.catalog.finishes[k].name})));$('kitBlock').hidden=c.kind!=='kit';if(scroll)$('studio').scrollIntoView({behavior:'smooth',block:'start'});requestEstimate();}
-function getConfig(){const items={};$('kitGrid').querySelectorAll('input').forEach(x=>items[x.value]=x.checked);return {categoryId:state.category,quantity:Number($('quantityInput').value),length:Number($('lengthInput').value),width:Number($('widthInput').value),height:Number($('heightInput').value),material:$('materialSelect').value,finish:$('finishSelect').value,printSides:Number($('sidesSelect').value),destinationState:$('stateSelect').value,rush:$('rushInput').checked,shipping:$('shipInput').checked,destinationCount:Number($('destinationCountInput').value),kitItems:items,designNotes:$('designNotes').value};}
+function getConfig(){const items={};$('kitGrid').querySelectorAll('input').forEach(x=>items[x.value]=x.checked);return {categoryId:state.category,quantity:Number($('quantityInput').value),length:Number($('lengthInput').value),width:Number($('widthInput').value),height:Number($('heightInput').value),material:$('materialSelect').value,finish:$('finishSelect').value,printSides:Number($('sidesSelect').value),destinationState:$('stateSelect').value,rush:$('rushInput').checked,shipping:$('shipInput').checked,destinationCount:Number($('destinationCountInput').value),kitItems:items,designNotes:$('designNotes').value,designStudio:state.designStudio||null};}
 function drawEstimate(d){state.estimate=d;$('grandTotal').textContent=INR(d.totalMinor);$('unitPrice').textContent=`${INR(d.unitInclTaxMinor)} / unit · ${d.quantity.toLocaleString('en-IN')} units`;$('quoteStatus').textContent=d.status==='technical_review'?'TECHNICAL REVIEW REQUIRED':'ILLUSTRATIVE · FINAL AFTER REVIEW';$('breakdown').innerHTML=d.breakdown.map(x=>`<div class="cost-row"><span>${esc(x.label)}</span><strong>${INR(x.costMinor)}</strong></div>`).join('')+`<div class="cost-row"><span>Pricing, overhead & margin</span><strong>${INR(d.netMinor-d.costMinor)}</strong></div><div class="cost-row"><span>Estimated taxes</span><strong>${INR(d.taxMinor)}</strong></div><div class="cost-row total"><span>Estimated total</span><strong>${INR(d.totalMinor)}</strong></div>`;$('leadTime').textContent=d.leadDays?`${d.leadDays} working days*`:'Subject to review';$('estimateWarning').textContent=d.warnings.join(' ');$('saveQuoteButton').disabled=false;}
 let estimateSeq=0;async function requestEstimate(){if(!state.catalog)return;const seq=++estimateSeq;state.estimate=null;$('grandTotal').textContent='Calculating…';$('saveQuoteButton').disabled=true;try{const d=await api('/estimate',{method:'POST',body:getConfig()});if(seq===estimateSeq)drawEstimate(d)}catch(e){if(seq===estimateSeq){state.estimate=null;$('grandTotal').textContent='—';$('unitPrice').textContent=e.message;$('estimateWarning').textContent='Please correct your configuration.';}}}
 const debounce=(fn,ms=250)=>{let t;return (...args)=>{clearTimeout(t);t=setTimeout(()=>fn(...args),ms)}};
@@ -191,13 +191,248 @@ async function submitHandler(e){const id=e.target.id;if(!['jobForm','shipmentFor
 function applyRotation(){const r=state.rotation;$('productCube').style.transform=`rotateX(${r.x}deg) rotateY(${r.y}deg)`;}
 function initRotation(){let down=false,px=0,py=0;const scene=$('cubeScene');scene.addEventListener('pointerdown',e=>{down=true;px=e.clientX;py=e.clientY;scene.setPointerCapture(e.pointerId);});scene.addEventListener('pointermove',e=>{if(!down)return;state.rotation.y+=(e.clientX-px)*.5;state.rotation.x=Math.max(-85,Math.min(85,state.rotation.x-(e.clientY-py)*.4));px=e.clientX;py=e.clientY;applyRotation();});scene.addEventListener('pointerup',()=>down=false);scene.addEventListener('lostpointercapture',()=>down=false);
  for(const [id,x,y] of [['viewFront',0,0],['viewAngle',-22,-29],['viewTop',-80,0]])$(id).onclick=()=>{state.rotation={x,y};applyRotation();document.querySelectorAll('.view-buttons button').forEach(n=>n.classList.toggle('view-active',n.id===id));};}
-async function init(){try{const h=await api('/health');state.uatEnabled=!!h.uatDemoEnabled;state.paymentsEnabled=!!h.paymentsEnabled}catch{}document.querySelectorAll('[data-scroll],[data-kit]').forEach(()=>{});$('year').textContent=new Date().getFullYear();$('accountButton').addEventListener('click',async()=>{if(state.user){try{await api('/auth/logout',{method:'POST',body:{}});state.user=null;state.csrf=null;state.workspaceInitialized=false;updateAccount();loadWorkspace();notify('Signed out.');}catch(e){notify(e.message,true)}}else showAuth();});$('closeAuth').onclick=hideAuth;$('authModal').addEventListener('click',e=>{if(e.target===$('authModal'))hideAuth();});$('authModal').addEventListener('keydown',e=>{if(e.key==='Escape'){e.preventDefault();hideAuth();return;}if(e.key!=='Tab')return;const focusable=[...$('authModal').querySelectorAll('button:not(:disabled),input:not(:disabled)')].filter(node=>!node.closest('[hidden]')&&node.getClientRects().length);const first=focusable[0],last=focusable.at(-1);if(e.shiftKey&&document.activeElement===first){e.preventDefault();last.focus();}else if(!e.shiftKey&&document.activeElement===last){e.preventDefault();first.focus();}});$('authSwitch').onclick=()=>{state.authMode=state.authMode==='login'?'register':'login';updateAuthView();};$('authForm').addEventListener('submit',loginOrRegister);$('saveQuoteButton').onclick=saveQuote;$('customRfq').onclick=()=>chooseCategory('custom');$('menuToggle').onclick=()=>{const open=document.querySelector('.nav').classList.toggle('menu-open');$('menuToggle').setAttribute('aria-expanded',String(open));};document.querySelectorAll('.nav a').forEach(a=>a.addEventListener('click',()=>{document.querySelector('.nav').classList.remove('menu-open');$('menuToggle').setAttribute('aria-expanded','false')}));$('workspaceShell').addEventListener('click',e=>{if(e.target.id==='workspaceSignIn')showAuth();});document.addEventListener('click',clickHandler);document.addEventListener('submit',submitHandler);
+async function init(){try{const h=await api('/health');state.uatEnabled=!!h.uatDemoEnabled;state.paymentsEnabled=!!h.paymentsEnabled;state.aiProvider=h.aiProvider||'disabled'}catch{}document.querySelectorAll('[data-scroll],[data-kit]').forEach(()=>{});$('year').textContent=new Date().getFullYear();$('accountButton').addEventListener('click',async()=>{if(state.user){try{await api('/auth/logout',{method:'POST',body:{}});state.user=null;state.csrf=null;state.workspaceInitialized=false;updateAccount();loadWorkspace();notify('Signed out.');}catch(e){notify(e.message,true)}}else showAuth();});$('closeAuth').onclick=hideAuth;$('authModal').addEventListener('click',e=>{if(e.target===$('authModal'))hideAuth();});$('authModal').addEventListener('keydown',e=>{if(e.key==='Escape'){e.preventDefault();hideAuth();return;}if(e.key!=='Tab')return;const focusable=[...$('authModal').querySelectorAll('button:not(:disabled),input:not(:disabled)')].filter(node=>!node.closest('[hidden]')&&node.getClientRects().length);const first=focusable[0],last=focusable.at(-1);if(e.shiftKey&&document.activeElement===first){e.preventDefault();last.focus();}else if(!e.shiftKey&&document.activeElement===last){e.preventDefault();first.focus();}});$('authSwitch').onclick=()=>{state.authMode=state.authMode==='login'?'register':'login';updateAuthView();};$('authForm').addEventListener('submit',loginOrRegister);$('saveQuoteButton').onclick=saveQuote;$('customRfq').onclick=()=>chooseCategory('custom');$('menuToggle').onclick=()=>{const open=document.querySelector('.nav').classList.toggle('menu-open');$('menuToggle').setAttribute('aria-expanded',String(open));};document.querySelectorAll('.nav a').forEach(a=>a.addEventListener('click',()=>{document.querySelector('.nav').classList.remove('menu-open');$('menuToggle').setAttribute('aria-expanded','false')}));$('workspaceShell').addEventListener('click',e=>{if(e.target.id==='workspaceSignIn')showAuth();});document.addEventListener('click',clickHandler);document.addEventListener('submit',submitHandler);
  for(const id of ['productSelect','materialSelect','finishSelect','sidesSelect','stateSelect','rushInput','shipInput','destinationCountInput'])$(id).addEventListener('change',id==='productSelect'?()=>chooseCategory($('productSelect').value,false):requestEstimate);
  for(const id of ['quantityInput','lengthInput','widthInput','heightInput','designNotes'])$(id).addEventListener('input',debounce(requestEstimate));
  $('qtyMinus').onclick=()=>{$('quantityInput').value=Math.max(1,Number($('quantityInput').value)-1);requestEstimate()};$('qtyPlus').onclick=()=>{$('quantityInput').value=Math.min(100000,Number($('quantityInput').value)+1);requestEstimate()};
  document.querySelectorAll('.swatch').forEach(b=>b.addEventListener('click',()=>{state.boxColor=b.dataset.color;document.documentElement.style.setProperty('--box-color',state.boxColor);document.querySelectorAll('.swatch').forEach(s=>s.classList.toggle('selected',s===b));$('swatchName').textContent=b.getAttribute('aria-label');}));
  $('logoUpload').addEventListener('change',async e=>{const file=e.target.files[0];if(!file)return;if(file.size>2_000_000||!['image/png','image/jpeg'].includes(file.type))return notify('Preview logos must be PNG/JPEG under 2 MB. Production uploads require a secure artwork service.',true);const reader=new FileReader();reader.onload=()=>{$('previewBrand').replaceChildren();const image=document.createElement('img');image.src=reader.result;image.alt='Uploaded logo concept';$('previewBrand').append(image);notify('Logo preview updated locally. Upload to a secure proof workflow before ordering.');};reader.readAsDataURL(file);});
  $('categorySearch').addEventListener('input',debounce(categoryCards));document.querySelectorAll('[data-filter]').forEach(b=>b.addEventListener('click',()=>{state.filter=b.dataset.filter;document.querySelectorAll('[data-filter]').forEach(x=>x.classList.toggle('active',x===b));categoryCards();}));initRotation();
- try{state.catalog=await api('/catalog');fillSelect($('productSelect'),state.catalog.categories);kitContent();categoryCards();chooseCategory('welcome-kit',false);}catch(e){notify('Cannot load catalog. Start the DesignPro API server.',true);$('categoryGrid').innerHTML=renderEmpty('Catalog unavailable','Start the local API or check the server status.');}
+ try{state.catalog=await api('/catalog');fillSelect($('productSelect'),state.catalog.categories);kitContent();categoryCards();chooseCategory('welcome-kit',false);initStudioEnhancements();}catch(e){notify('Cannot load catalog. Start the DesignPro API server.',true);$('categoryGrid').innerHTML=renderEmpty('Catalog unavailable','Start the local API or check the server status.');}
  await initSession();}
+
+function initStudioEnhancements(){
+ if(!$('productCube')||document.getElementById('designStudioControls'))return;
+ const faces=['front','back','left','right','top','bottom'];
+ const labels={front:'Front',back:'Back',left:'Left',right:'Right',top:'Top',bottom:'Bottom'};
+ const cube=$('productCube'),scene=$('cubeScene');
+ const artworkByFace={};
+ let customShapeDataUrl='';
+ let latestConcept=null;
+ let manualShape=false;
+ const panel=document.createElement('section');
+ panel.id='designStudioControls';
+ panel.className='design-studio-controls';
+ panel.innerHTML=
+  '<div class="designer-panel-heading"><div><span class="designer-kicker">THE DETAIL STUDIO</span><h3>Make every side yours.</h3><p>Choose a form, set individual face colours, add copy and place artwork.</p></div><span class="designer-status">LIVE PREVIEW</span></div>'+
+  '<div class="designer-grid">'+
+   '<section class="designer-card"><div class="designer-card-title"><span>01</span><h4>Shape & form</h4></div>'+
+    '<label class="designer-label" for="shapePreset">Shape preset</label><select id="shapePreset" class="field"><option value="rectangular">Rectangular box</option><option value="cube">Cube</option><option value="tall">Tall box</option><option value="flat">Flat print panel</option><option value="rounded">Rounded-edge box</option><option value="bottle">Bottle / cylinder</option><option value="label-sheet">Label sheet</option><option value="display">Display stand</option><option value="custom">Custom SVG profile</option></select>'+
+    '<label class="designer-label" for="customShapeUpload">Upload a custom shape / dieline (SVG)</label><input id="customShapeUpload" class="designer-file" type="file" accept=".svg,image/svg+xml">'+
+    '<div class="shape-import-preview"><img id="customShapeThumb" alt="Uploaded custom shape outline" hidden><p id="shapeImportStatus" role="status">SVG outline supported for a local concept overlay. CDR/DXF files need conversion to SVG.</p></div>'+
+    '<p class="designer-help">The preset changes the concept proportions. Entered millimetres remain the pricing dimensions. A custom SVG is a 2D reference, not an automatically engineered 3D mesh.</p></section>'+
+   '<section class="designer-card"><div class="designer-card-title"><span>02</span><h4>Design each side</h4></div>'+
+    '<div class="face-selector" id="faceSelector" role="group" aria-label="Choose product side">'+faces.map(function(face){return '<button type="button" data-face="'+face+'" aria-pressed="'+(face==='front'?'true':'false')+'">'+labels[face]+'</button>';}).join('')+'</div>'+
+    '<div class="face-editor-grid"><label class="designer-label" for="faceColorInput">Selected side colour</label><input id="faceColorInput" class="face-color-input" type="color" value="#373327"><label class="designer-label" for="faceTextInput">Text on this side</label><textarea id="faceTextInput" class="field" rows="2" maxlength="120" placeholder="Add a message for the selected side"></textarea>'+
+    '<div class="face-editor-options"><label class="designer-label" for="faceFontSize">Text size<input id="faceFontSize" class="field" type="number" min="10" max="32" value="16"></label><label class="designer-label" for="faceTextAlign">Alignment<select id="faceTextAlign" class="field"><option value="center">Centre</option><option value="left">Left</option><option value="right">Right</option></select></label></div>'+
+    '<div class="face-editor-footer"><span id="faceTextCount">0 / 120</span><button type="button" class="designer-link" id="clearFaceText">Clear side text</button></div>'+
+    '<label class="designer-label" for="artworkUpload">Place artwork on selected side</label><input id="artworkUpload" class="designer-file" type="file" accept=".cdr,.ai,.eps,.pdf,.svg,.png,.jpg,.jpeg,.webp,.tif,.tiff">'+
+    '<p id="artworkImportStatus" class="designer-help" role="status">SVG and common image files can be previewed locally. CDR, AI, EPS and PDF metadata is extracted only where supported.</p></div>'+
+   '</section>'+
+   '<section class="designer-card designer-import-card"><div class="designer-card-title"><span>03</span><h4>Import an existing design</h4></div>'+
+    '<p>Choose a design file to inspect its dimensions and text. Detected measurements are suggestions—confirm the intended physical size before pricing.</p>'+
+    '<div class="import-format-list"><span>CDR</span><span>AI</span><span>EPS</span><span>PDF</span><span>SVG</span><span>PNG</span><span>JPG</span><span>WEBP</span></div>'+
+    '<p class="designer-help">Raw CDR is proprietary and cannot be reliably parsed in a browser. Export it from CorelDRAW as SVG or PDF for more useful extraction. Imported files stay in this browser session; they are not uploaded or stored by the server.</p></section>'+
+   '<section class="designer-card designer-ai-card"><div class="designer-card-title"><span>04</span><h4>AI design assistant</h4><span class="ai-local-tag">LOCAL AI · OPTIONAL</span></div>'+
+    '<p>Not sure how to design it? Describe your brand, audience, occasion and mood. A local model can suggest a shape, palette, finishes and side-specific copy.</p>'+
+    '<label class="designer-label" for="aiBrief">Describe your idea</label><textarea id="aiBrief" class="field" rows="3" maxlength="1500" placeholder="Example: A premium welcome box for a technology company, deep navy with copper foil, minimal typography and a warm message inside the lid."></textarea>'+
+    '<div class="ai-actions"><span id="aiConnectionStatus" role="status">Local AI is optional. Configure Ollama to enable concept generation.</span><button type="button" class="primary-button" id="generateAiConcept">Generate concept ↗</button></div>'+
+    '<div id="aiConceptResult" class="ai-concept-result" aria-live="polite"></div>'+
+    '<p class="designer-help">This assistant proposes a creative direction; it does not generate final print-ready artwork, guarantee production feasibility or set prices. No paid API key is required when using local Ollama.</p></section>'+
+  '</div>';
+ const swatches=document.querySelector('.swatches');
+ swatches.insertAdjacentElement('afterend',panel);
+ const toolbar=document.querySelector('.preview-toolbar');
+ if(toolbar&&!document.getElementById('previewProductName')){
+  const name=document.createElement('span');name.id='previewProductName';name.className='preview-product-name';name.textContent='Corporate Welcome Kits';toolbar.append(name);
+ }
+ const viewButtons=document.querySelector('.view-buttons');
+ if(viewButtons&&!$('view360Toggle'))viewButtons.insertAdjacentHTML('beforeend','<button type="button" id="view360Toggle" aria-pressed="false">360° view</button>');
+ const tools=document.querySelector('.preview-tools');
+ if(tools&&!$('rotationSlider'))tools.insertAdjacentHTML('beforeend','<label class="rotation-control" for="rotationSlider">Rotate <input id="rotationSlider" type="range" min="0" max="360" step="1" value="331"><output id="rotationValue">331°</output></label>');
+ const studio=state.designStudio;
+ const colourInput=$('faceColorInput'),textInput=$('faceTextInput'),sizeInput=$('faceFontSize'),alignInput=$('faceTextAlign');
+ function safeSvg(raw){
+  const doc=new DOMParser().parseFromString(raw,'image/svg+xml');
+  if(doc.querySelector('parsererror')||!doc.documentElement||doc.documentElement.localName!=='svg')throw new Error('The selected SVG is not valid.');
+  doc.querySelectorAll('script,foreignObject,iframe,object,embed,audio,video').forEach(function(n){n.remove();});
+  doc.querySelectorAll('*').forEach(function(node){
+   Array.from(node.attributes).forEach(function(attr){
+    if(/^on/i.test(attr.name))node.removeAttribute(attr.name);
+    else if(/^(href|xlink:href)$/i.test(attr.name)&&!String(attr.value).startsWith('#'))node.removeAttribute(attr.name);
+    else if(attr.name.toLowerCase()==='style'&&/(url\s*\(|expression\s*\()/i.test(attr.value))node.removeAttribute(attr.name);
+   });
+  });
+  return 'data:image/svg+xml;charset=utf-8,'+encodeURIComponent(new XMLSerializer().serializeToString(doc.documentElement));
+ }
+ function readDataUrl(file){return new Promise(function(resolve,reject){const reader=new FileReader();reader.onload=function(){resolve(String(reader.result||''));};reader.onerror=function(){reject(new Error('Could not read the selected file.'));};reader.readAsDataURL(file);});}
+ function parseSvgDimension(value,fallback){
+  const m=String(value||'').trim().match(/^([0-9]+(?:\.[0-9]+)?)\s*(mm|cm|in|pt|pc|px)?$/i);
+  if(!m)return fallback;
+  const n=Number(m[1]),unit=(m[2]||'px').toLowerCase();
+  const factor={mm:1,cm:10,in:25.4,pt:25.4/72,pc:25.4/6,px:25.4/96}[unit];
+  return n*factor;
+ }
+ function setDetectedDimensions(widthMm,heightMm,source){
+  if(!Number.isFinite(widthMm)||!Number.isFinite(heightMm)||widthMm<20||heightMm<20||widthMm>2000||heightMm>2000)return 'Dimensions detected, but outside the configurator range (20–2,000 mm). Review manually.';
+  $('lengthInput').value=String(Math.round(widthMm));$('widthInput').value=String(Math.round(heightMm));requestEstimate();
+  return 'Suggested size: '+Math.round(widthMm)+' × '+Math.round(heightMm)+' mm ('+source+'). Confirm the physical dimensions before requesting a quote.';
+ }
+ function renderFaceDesign(){
+  faces.forEach(function(face){
+   const node=document.querySelector('.product-cube .face.'+face);
+   if(!node)return;
+   let text=node.querySelector('.face-custom-text');
+   if(!text){text=document.createElement('span');text.className='face-custom-text';node.append(text);}
+   const value=studio.faceTexts[face]||'';
+   text.textContent=value;text.hidden=!value;
+   text.style.fontSize=String(studio.fontSize||16)+'px';text.style.textAlign=studio.textAlign||'center';
+   text.style.justifyContent=(studio.textAlign==='left'?'flex-start':studio.textAlign==='right'?'flex-end':'center');
+   node.classList.toggle('has-artwork',!!artworkByFace[face]);
+   let art=node.querySelector('.face-artwork');
+   if(artworkByFace[face]){
+    if(!art){art=document.createElement('img');art.className='face-artwork';art.alt='Imported artwork concept on '+labels[face]+' side';node.append(art);}
+    art.src=artworkByFace[face];
+   }else if(art)art.remove();
+  });
+  const topDefault=document.querySelector('.product-cube .face.top > span:not(.face-custom-text)');
+  if(topDefault)topDefault.hidden=!!studio.faceTexts.top;
+ }
+ function updateModel(){
+  const category=state.catalog?.categories?.find(function(c){return c.id===state.category;});
+  const length=Math.max(20,Number($('lengthInput').value)||240),width=Math.max(20,Number($('widthInput').value)||180),height=Math.max(1,Number($('heightInput').value)||80);
+  const max=Math.max(length,width,height),scale=210/max;
+  let w=Math.max(72,Math.min(230,length*scale)),d=Math.max(72,Math.min(230,width*scale)),h=Math.max(56,Math.min(215,height*scale));
+  if(studio.shape==='cube'){const side=Math.max(w,d,h);w=side;d=side;h=side;}
+  if(studio.shape==='tall')h=Math.max(h,Math.min(215,Math.max(w,d)*.82));
+  if(studio.shape==='flat')h=Math.min(h,Math.max(58,Math.min(w,d)*.42));
+  if(studio.shape==='bottle'){w=94;d=94;h=210;}
+  if(studio.shape==='label-sheet'){w=230;d=165;h=34;}
+  if(studio.shape==='display'){w=170;d=90;h=210;}
+  const radius=studio.shape==='rounded'?14:studio.shape==='custom'?8:3;
+  const values={'--cube-w':w+'px','--cube-h':h+'px','--cube-d':d+'px','--cube-d-half':(d/2)+'px','--cube-w-half':(w/2)+'px','--cube-h-half':(h/2)+'px','--cube-left':((w-d)/2)+'px','--cube-top':((h-d)/2)+'px','--cube-radius':radius+'px'};
+  Object.entries(values).forEach(function(pair){cube.style.setProperty(pair[0],pair[1]);});
+  cube.dataset.shape=studio.shape;cube.classList.toggle('is-rounded',studio.shape==='rounded');cube.dataset.material=$('materialSelect').value||'premium';cube.dataset.finish=$('finishSelect').value||'matte';
+  const frontFace=document.querySelector('.product-cube .face.front');let bottleCap=frontFace.querySelector('.bottle-cap');if(studio.shape==='bottle'){if(!bottleCap){bottleCap=document.createElement('span');bottleCap.className='bottle-cap';bottleCap.setAttribute('aria-hidden','true');frontFace.append(bottleCap);}}else if(bottleCap)bottleCap.remove();
+  let labelGrid=frontFace.querySelector('.label-grid-preview');if(studio.shape==='label-sheet'){if(!labelGrid){labelGrid=document.createElement('span');labelGrid.className='label-grid-preview';labelGrid.setAttribute('aria-hidden','true');labelGrid.innerHTML='<i></i><i></i><i></i><i></i><i></i><i></i>';frontFace.append(labelGrid);}}else if(labelGrid)labelGrid.remove();
+  faces.forEach(function(face){cube.style.setProperty('--face-'+face,studio.faceColors[face]||state.boxColor||'#373327');});
+  const title=category?category.name:'Custom product';
+  if($('previewProductName'))$('previewProductName').textContent=title+' · '+(studio.shape==='custom'?'Custom profile':studio.shape.replaceAll('_',' '));
+  let custom=cube.querySelector('.custom-shape-overlay');
+  if(customShapeDataUrl){
+   if(!custom){custom=document.createElement('img');custom.className='custom-shape-overlay';custom.alt='Uploaded custom shape outline';const front=document.querySelector('.product-cube .face.front');front.append(custom);}
+   custom.src=customShapeDataUrl;
+  }else if(custom)custom.remove();
+  renderFaceDesign();
+ }
+ function selectFace(face){
+  if(!faces.includes(face))return;
+  studio.selectedFace=face;
+  document.querySelectorAll('#faceSelector [data-face]').forEach(function(button){button.setAttribute('aria-pressed',String(button.dataset.face===face));});
+  colourInput.value=studio.faceColors[face]||'#373327';textInput.value=studio.faceTexts[face]||'';
+  sizeInput.value=String(studio.fontSize||16);alignInput.value=studio.textAlign||'center';
+  $('faceTextCount').textContent=textInput.value.length+' / 120';
+ }
+ function defaultShapeForCategory(){
+  const category=state.catalog?.categories?.find(function(c){return c.id===state.category;});
+  if(manualShape)return;
+  const productShapes={'corporate-gift':'bottle','labels':'label-sheet','display':'display','digital-print':'flat','marketing':'flat','stationery':'flat','uv-print':'flat','laser-cut':'flat','luxury-gift':'rounded','game-box':'cube','folding-carton':'tall','education-kit':'tall','event':'tall'};studio.shape=productShapes[state.category]||(category&&['print','uv','laser'].includes(category.kind)?'flat':'rectangular');
+  $('shapePreset').value=studio.shape;
+ }
+ $('shapePreset').value=studio.shape;
+ $('shapePreset').addEventListener('change',function(){studio.shape=$('shapePreset').value;manualShape=true;updateModel();});
+ $('faceSelector').addEventListener('click',function(event){const button=event.target.closest('[data-face]');if(button)selectFace(button.dataset.face);});
+ colourInput.addEventListener('input',function(){studio.faceColors[studio.selectedFace]=colourInput.value.toUpperCase();updateModel();});
+ textInput.addEventListener('input',function(){studio.faceTexts[studio.selectedFace]=textInput.value.slice(0,120);$('faceTextCount').textContent=textInput.value.length+' / 120';updateModel();});
+ sizeInput.addEventListener('input',function(){studio.fontSize=Math.max(10,Math.min(32,Number(sizeInput.value)||16));updateModel();});
+ alignInput.addEventListener('change',function(){studio.textAlign=alignInput.value;updateModel();});
+ $('clearFaceText').addEventListener('click',function(){studio.faceTexts[studio.selectedFace]='';textInput.value='';$('faceTextCount').textContent='0 / 120';updateModel();});
+ $('customShapeUpload').addEventListener('change',async function(event){
+  const file=event.target.files&&event.target.files[0];if(!file)return;
+  if(file.size>5*1024*1024)return notify('Custom SVG must be smaller than 5 MB.',true);
+  if(!/\.svg$/i.test(file.name))return notify('For a custom shape preview, export the outline as SVG first.',true);
+  try{
+   const raw=await file.text();customShapeDataUrl=safeSvg(raw);studio.customShapeFileName=file.name.slice(0,120);studio.shape='custom';manualShape=true;$('shapePreset').value='custom';
+   $('customShapeThumb').src=customShapeDataUrl;$('customShapeThumb').hidden=false;
+   $('shapeImportStatus').textContent='Loaded '+file.name+' as a 2D shape reference. The preview uses a concept overlay; a 3D mesh/dieline still needs engineering validation.';
+   updateModel();notify('Custom SVG shape reference loaded locally.');
+  }catch(error){notify(error.message||'Could not read the SVG shape.',true);}
+ });
+ $('artworkUpload').addEventListener('change',async function(event){
+  const file=event.target.files&&event.target.files[0];if(!file)return;
+  if(file.size>15*1024*1024)return notify('Artwork file must be smaller than 15 MB for local inspection.',true);
+  const ext=(file.name.split('.').pop()||'').toLowerCase(),face=studio.selectedFace;
+  let widthMm=null,heightMm=null,extractedText='',previewData='',source='';
+  try{
+   if(ext==='svg'){
+    const raw=await file.text(),doc=new DOMParser().parseFromString(raw,'image/svg+xml');
+    if(doc.querySelector('parsererror')||doc.documentElement.localName!=='svg')throw new Error('The SVG file is invalid.');
+    const svg=doc.documentElement,view=(svg.getAttribute('viewBox')||'').trim().split(/[ ,]+/).map(Number);
+    const fw=view.length===4&&view.every(Number.isFinite)?view[2]:null,fh=view.length===4&&view.every(Number.isFinite)?view[3]:null;
+    widthMm=parseSvgDimension(svg.getAttribute('width'),fw===null?null:fw*25.4/96);heightMm=parseSvgDimension(svg.getAttribute('height'),fh===null?null:fh*25.4/96);source='SVG units / viewBox';
+    extractedText=Array.from(doc.querySelectorAll('text,tspan')).map(function(n){return n.textContent.trim();}).filter(Boolean).join(' ').slice(0,400);
+    previewData=safeSvg(raw);
+   }else if(['png','jpg','jpeg','webp','tif','tiff'].includes(ext)){
+    const bitmap=await createImageBitmap(file);widthMm=bitmap.width*25.4/96;heightMm=bitmap.height*25.4/96;bitmap.close?.();source='raster pixels estimated at 96 DPI';
+    if(['png','jpg','jpeg','webp'].includes(ext))previewData=await readDataUrl(file);
+   }else if(['pdf','ai','eps'].includes(ext)){
+    const raw=await file.text();
+    let match=raw.match(/\/MediaBox\s*\[\s*(-?[\d.]+)\s+(-?[\d.]+)\s+(-?[\d.]+)\s+(-?[\d.]+)\s*\]/);
+    if(!match)match=raw.match(/%%(?:HiRes)?BoundingBox:\s*(-?[\d.]+)\s+(-?[\d.]+)\s+(-?[\d.]+)\s+(-?[\d.]+)/);
+    if(match){widthMm=Math.abs(Number(match[3])-Number(match[1]))*25.4/72;heightMm=Math.abs(Number(match[4])-Number(match[2]))*25.4/72;source=ext.toUpperCase()+' page / artboard bounds';}
+   }else if(ext==='cdr'){
+    $('artworkImportStatus').textContent='CDR file recognised. CorelDRAW uses a proprietary format; export as SVG or PDF for reliable dimension and text extraction. This file has not been uploaded.';
+   }else throw new Error('Supported formats: CDR, AI, EPS, PDF, SVG, PNG, JPG, WEBP and TIFF.');
+   if(previewData)artworkByFace[face]=previewData;
+   studio.artworkFiles[face]={fileName:file.name.slice(0,180),sizeBytes:file.size,mimeType:(file.type||ext).slice(0,100)};
+   let message='Selected '+file.name+'. ';
+   if(widthMm&&heightMm)message+=setDetectedDimensions(widthMm,heightMm,source);
+   else if(ext==='cdr')message+='Export to SVG/PDF to extract dimensions and preview.';
+   else message+='No reliable physical dimensions were found. Enter the final millimetres manually.';
+   if(extractedText){const note='Imported artwork text: '+extractedText;const existing=$('designNotes').value.trim();$('designNotes').value=(existing?existing+'\n':'')+note;$('designNotes').value=$('designNotes').value.slice(0,1000);message+=' Text was extracted into the design brief.';}
+   message+=' Artwork is local-only and is not uploaded to the server.';
+   $('artworkImportStatus').textContent=message;updateModel();notify('Artwork inspected for the '+labels[face].toLowerCase()+' side. Review the detected size before pricing.');
+  }catch(error){$('artworkImportStatus').textContent=error.message||'Could not inspect the selected artwork.';notify(error.message||'Could not inspect the selected artwork.',true);}
+ });
+ $('productSelect').addEventListener('change',function(){defaultShapeForCategory();updateModel();});
+ ['materialSelect','finishSelect','lengthInput','widthInput','heightInput'].forEach(function(id){$(id).addEventListener('input',updateModel);$(id).addEventListener('change',updateModel);});
+ document.querySelectorAll('.swatch').forEach(function(button){button.addEventListener('click',function(){faces.forEach(function(face){studio.faceColors[face]=state.boxColor;});selectFace(studio.selectedFace);updateModel();});});
+ const slider=$('rotationSlider'),rotationValue=$('rotationValue'),toggle=$('view360Toggle');
+ function syncRotation(){const value=Math.round(((state.rotation.y%360)+360)%360);slider.value=String(value);rotationValue.textContent=value+'°';}
+ slider.addEventListener('input',function(){scene.classList.remove('is-spinning');toggle.setAttribute('aria-pressed','false');toggle.textContent='360° view';state.rotation.y=Number(slider.value);applyRotation();syncRotation();});
+ toggle.addEventListener('click',function(){const active=!scene.classList.contains('is-spinning');scene.classList.toggle('is-spinning',active);toggle.setAttribute('aria-pressed',String(active));toggle.textContent=active?'Stop rotation':'360° view';});
+ scene.addEventListener('pointerdown',function(){scene.classList.remove('is-spinning');toggle.setAttribute('aria-pressed','false');toggle.textContent='360° view';});
+ scene.addEventListener('pointermove',syncRotation);
+ ['viewFront','viewAngle','viewTop'].forEach(function(id){$(id).addEventListener('click',function(){scene.classList.remove('is-spinning');toggle.setAttribute('aria-pressed','false');toggle.textContent='360° view';syncRotation();});});
+ const aiStatus=$('aiConnectionStatus');
+ aiStatus.textContent=state.aiProvider==='ollama'?'Ollama selected · model availability is checked when you generate.':'Local AI is not enabled. Set AI_PROVIDER=ollama in .env and start Ollama to enable it.';
+ $('generateAiConcept').addEventListener('click',async function(){
+  const brief=$('aiBrief').value.trim();if(brief.length<20)return notify('Please describe the product, audience and design mood in at least 20 characters.',true);
+  const button=$('generateAiConcept');button.disabled=true;button.textContent='Creating concept…';aiStatus.textContent='Asking the local model for a structured concept…';
+  try{
+   latestConcept=await api('/ai/design-concepts',{method:'POST',body:{brief:brief,categoryId:state.category,material:$('materialSelect').value,finish:$('finishSelect').value,dimensions:{length:Number($('lengthInput').value),width:Number($('widthInput').value),height:Number($('heightInput').value)}}});
+   const result=$('aiConceptResult');result.replaceChildren();
+   const title=document.createElement('strong');title.textContent=latestConcept.conceptName||'Suggested design direction';
+   const description=document.createElement('p');description.textContent=latestConcept.direction||'Review this concept before applying it.';
+   const palette=document.createElement('div');palette.className='ai-palette';
+   faces.forEach(function(face){const chip=document.createElement('span');chip.title=labels[face]+': '+(latestConcept.palette?.[face]||'#373327');chip.style.backgroundColor=latestConcept.palette?.[face]||'#373327';palette.append(chip);});
+   const apply=document.createElement('button');apply.type='button';apply.className='primary-button';apply.textContent='Apply this concept';apply.addEventListener('click',function(){
+    faces.forEach(function(face){if(/^#[0-9a-f]{6}$/i.test(latestConcept.palette?.[face]||''))studio.faceColors[face]=latestConcept.palette[face].toUpperCase();if(typeof latestConcept.sideText?.[face]==='string')studio.faceTexts[face]=latestConcept.sideText[face].slice(0,120);});
+    if(['rectangular','cube','tall','flat','rounded','bottle','label-sheet','display','custom'].includes(latestConcept.shape)){studio.shape=latestConcept.shape;$('shapePreset').value=studio.shape;manualShape=true;}
+    const category=state.catalog.categories.find(function(c){return c.id===state.category;});
+    if(category?.materials.includes(latestConcept.material))$('materialSelect').value=latestConcept.material;
+    if(category?.finishes.includes(latestConcept.finish))$('finishSelect').value=latestConcept.finish;
+    studio.aiConcept=String(latestConcept.conceptName||'AI concept').slice(0,120);
+    const notes='AI concept: '+studio.aiConcept+'. '+String(latestConcept.direction||'').slice(0,400);
+    $('designNotes').value=(($('designNotes').value.trim()?$('designNotes').value.trim()+'\n':'')+notes).slice(0,1000);
+    selectFace('front');updateModel();requestEstimate();notify('AI concept applied. Review every side and confirm the artwork before requesting a quote.');
+   });
+   result.append(title,description,palette,apply);
+   aiStatus.textContent='Concept ready · review the palette and copy before applying.';
+  }catch(error){aiStatus.textContent=error.message||'The local AI service is unavailable.';notify(error.message||'The local AI service is unavailable.',true);}
+  finally{button.disabled=false;button.textContent='Generate concept ↗';}
+ });
+ defaultShapeForCategory();selectFace(studio.selectedFace||'front');updateModel();syncRotation();
+}
+
 init();
