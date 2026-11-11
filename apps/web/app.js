@@ -330,7 +330,7 @@ function initStudioEnhancements(){
    if(artworkByFace[face]){
     if(!frame){
      frame=document.createElement('div');frame.className='face-artwork-frame';frame.dataset.face=face;
-     const art=document.createElement('img');art.className='face-artwork';art.alt='Imported artwork concept on '+labels[face]+' side';
+     const art=document.createElement('img');art.className='face-artwork';art.alt='Imported artwork concept on '+labels[face]+' side';art.draggable=false;
      const handle=document.createElement('button');handle.type='button';handle.className='face-artwork-resize';handle.setAttribute('aria-label','Resize '+labels[face]+' artwork');handle.title='Drag to resize';
      frame.append(art,handle);node.append(frame);
     }
