@@ -50,7 +50,26 @@ def page_setup(browser,viewport,role):
  page.add_script_tag(content=SCRIPT)
  page.wait_for_timeout(230)
  assert not errors,errors
- assert not page.evaluate('document.documentElement.scrollWidth > innerWidth'),'Unexpected horizontal overflow'
+ assert page.locator('#designStudioControls').count()==1
+ page.locator('[data-face="back"]').click()
+ page.locator('#faceColorInput').fill('#234567')
+ assert page.locator('.product-cube').evaluate("(el)=>el.style.getPropertyValue('--face-back')")=='#234567'
+ page.locator('#faceTextInput').fill('Made for you')
+ assert page.locator('.face.back .face-custom-text').inner_text()=='Made for you'
+ page.locator('#shapePreset').select_option('cube')
+ assert page.locator('.product-cube').get_attribute('data-shape')=='cube'
+ page.locator('#view360Toggle').click()
+ assert page.locator('#cubeScene').evaluate("(el)=>el.classList.contains('is-spinning')")
+ page.locator('#view360Toggle').click()
+ svg={"name":"outline.svg","mimeType":"image/svg+xml","buffer":b'<svg xmlns="http://www.w3.org/2000/svg" width="200mm" height="150mm" viewBox="0 0 200 150"><rect x="4" y="4" width="192" height="142" fill="none" stroke="#222"/><text x="10" y="20">Brand line</text></svg>'}
+ page.locator('#customShapeUpload').set_input_files(svg)
+ page.wait_for_timeout(50)
+ assert not page.locator('#customShapeThumb').is_hidden()
+ page.locator('#artworkUpload').set_input_files(svg)
+ page.wait_for_timeout(60)
+ assert '200 × 150 mm' in page.locator('#artworkImportStatus').inner_text()
+ assert page.locator('.face.back .face-artwork').count()==1
+ assert not page.evaluate('document.documentElement.scrollWidth > innerWidth'),'Unexpected horizontal overflow after design studio interaction'
  return page,errors
 
 def run():
