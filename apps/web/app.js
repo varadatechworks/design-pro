@@ -336,7 +336,7 @@ function initStudioEnhancements(){
  function defaultShapeForCategory(){
   const category=state.catalog?.categories?.find(function(c){return c.id===state.category;});
   if(manualShape)return;
-  const productShapes={'corporate-gift':'bottle','labels':'label-sheet','display':'display','digital-print':'flat','marketing':'flat','stationery':'flat','uv-print':'flat','laser-cut':'flat','luxury-gift':'rounded'};studio.shape=productShapes[state.category]||(category&&['print','uv','laser'].includes(category.kind)?'flat':'rectangular');
+  const productShapes={'corporate-gift':'bottle','labels':'label-sheet','display':'display','digital-print':'flat','marketing':'flat','stationery':'flat','uv-print':'flat','laser-cut':'flat','luxury-gift':'rounded','game-box':'cube','folding-carton':'tall','education-kit':'tall','event':'tall'};studio.shape=productShapes[state.category]||(category&&['print','uv','laser'].includes(category.kind)?'flat':'rectangular');
   $('shapePreset').value=studio.shape;
  }
  $('shapePreset').value=studio.shape;
