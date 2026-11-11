@@ -2,7 +2,7 @@ const $=id=>document.getElementById(id);
 const INR=v=>new Intl.NumberFormat('en-IN',{style:'currency',currency:'INR',maximumFractionDigits:2}).format((Number(v)||0)/100);
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const el=(tag,cls='',html='')=>{const e=document.createElement(tag);if(cls)e.className=cls;e.innerHTML=html;return e;};
-const state={catalog:null,category:'welcome-kit',filter:'all',estimate:null,user:null,csrf:null,authSubmitting:false,authReturnFocus:null,authMode:'login',workspaceTab:'quotes',boxColor:'#373327',rotation:{x:-22,y:-29},refreshTimer:null,uatEnabled:false,paymentsEnabled:false,aiProvider:'disabled',designStudio:{shape:'rectangular',selectedFace:'front',faceColors:{front:'#373327',back:'#373327',left:'#373327',right:'#373327',top:'#373327',bottom:'#373327'},faceTexts:{front:'',back:'',left:'',right:'',top:'',bottom:''},fontSize:16,textAlign:'center',customShapeFileName:'',artworkFiles:{},aiConcept:null},workspaceInitialized:false};
+const state={catalog:null,category:'welcome-kit',filter:'all',estimate:null,user:null,csrf:null,authSubmitting:false,authReturnFocus:null,authMode:'login',workspaceTab:'quotes',boxColor:'#373327',rotation:{x:-22,y:-29},refreshTimer:null,uatEnabled:false,paymentsEnabled:false,aiProvider:'disabled',designStudio:{shape:'rectangular',selectedFace:'front',faceColors:{front:'#373327',back:'#373327',left:'#373327',right:'#373327',top:'#373327',bottom:'#373327'},faceTexts:{front:'',back:'',left:'',right:'',top:'',bottom:''},fontSize:16,textAlign:'center',faceTypography:{front:{fontFamily:'serif',fontStyle:'normal',fontColor:'#F4E6CF',fontWeight:'600',fontSize:16,textAlign:'center'},back:{fontFamily:'serif',fontStyle:'normal',fontColor:'#F4E6CF',fontWeight:'600',fontSize:16,textAlign:'center'},left:{fontFamily:'serif',fontStyle:'normal',fontColor:'#F4E6CF',fontWeight:'600',fontSize:16,textAlign:'center'},right:{fontFamily:'serif',fontStyle:'normal',fontColor:'#F4E6CF',fontWeight:'600',fontSize:16,textAlign:'center'},top:{fontFamily:'serif',fontStyle:'normal',fontColor:'#F4E6CF',fontWeight:'600',fontSize:16,textAlign:'center'},bottom:{fontFamily:'serif',fontStyle:'normal',fontColor:'#F4E6CF',fontWeight:'600',fontSize:16,textAlign:'center'}},artworkPositions:{front:{left:20,top:18,width:60,height:60},back:{left:20,top:18,width:60,height:60},left:{left:20,top:18,width:60,height:60},right:{left:20,top:18,width:60,height:60},top:{left:20,top:18,width:60,height:60},bottom:{left:20,top:18,width:60,height:60}},customShapeFileName:'',artworkFiles:{},aiConcept:null},workspaceInitialized:false};
 let toastTimer;
 const notify=(message,error=false)=>{const t=$('toast');t.replaceChildren();const label=document.createElement('span');label.textContent=message;const dismiss=document.createElement('button');dismiss.type='button';dismiss.className='toast-dismiss';dismiss.textContent='×';dismiss.setAttribute('aria-label','Dismiss notification');dismiss.addEventListener('click',()=>{t.hidden=true;clearTimeout(toastTimer)});t.append(label,dismiss);t.className='toast-v2 '+(error?'toast-error':'toast-success');t.setAttribute('role',error?'alert':'status');t.setAttribute('aria-live',error?'assertive':'polite');t.hidden=false;clearTimeout(toastTimer);toastTimer=setTimeout(()=>t.hidden=true,8000)};
 async function api(path,options={}){const cfg={credentials:'same-origin',headers:{'Content-Type':'application/json',...(state.csrf?{'X-CSRF-Token':state.csrf}:{})},...options};if(cfg.body&&typeof cfg.body!=='string')cfg.body=JSON.stringify(cfg.body);let response;try{response=await fetch('/api/v1'+path,cfg)}catch{throw new Error('Cannot connect to DesignPro. Check your connection and try again.')}let data;try{data=await response.json()}catch{throw new Error('The service returned an unreadable response. Try again.')}if(!response.ok){const msg=data.error||`Request failed (${response.status})`;if(response.status===401&&state.user){state.user=null;state.csrf=null;updateAccount();notify('Your session has expired. Please sign in again.',true);loadWorkspace();}throw new Error(msg+(data.requestId?` · Reference ${data.requestId}`:''))}return data;}
@@ -189,14 +189,13 @@ async function clickHandler(e){const b=e.target.closest('[data-category],[data-t
 }
 async function submitHandler(e){const id=e.target.id;if(!['jobForm','shipmentForm','inventoryForm','roleForm','qcForm'].includes(id))return;e.preventDefault();const d=Object.fromEntries(new FormData(e.target));if(id==='jobForm')return action('/admin/work-orders',d);if(id==='qcForm')return action('/admin/quality-inspections',d,'POST','Quality inspection recorded.');if(id==='shipmentForm')return action('/shipments',d);if(id==='inventoryForm')return action('/admin/inventory',d);if(id==='roleForm')return action('/admin/roles',{code:d.code.trim().toUpperCase(),name:d.name,permissions:{[d.resource]:[d.action]}});}
 function applyRotation(){const r=state.rotation;$('productCube').style.transform=`rotateX(${r.x}deg) rotateY(${r.y}deg)`;}
-function initRotation(){let down=false,px=0,py=0;const scene=$('cubeScene');scene.addEventListener('pointerdown',e=>{down=true;px=e.clientX;py=e.clientY;scene.setPointerCapture(e.pointerId);});scene.addEventListener('pointermove',e=>{if(!down)return;state.rotation.y+=(e.clientX-px)*.5;state.rotation.x=Math.max(-85,Math.min(85,state.rotation.x-(e.clientY-py)*.4));px=e.clientX;py=e.clientY;applyRotation();});scene.addEventListener('pointerup',()=>down=false);scene.addEventListener('lostpointercapture',()=>down=false);
+function initRotation(){let down=false,px=0,py=0;const scene=$('cubeScene');scene.addEventListener('pointerdown',e=>{if(e.target.closest('.face-artwork-frame'))return;down=true;px=e.clientX;py=e.clientY;scene.setPointerCapture(e.pointerId);});scene.addEventListener('pointermove',e=>{if(!down)return;state.rotation.y+=(e.clientX-px)*.5;state.rotation.x=Math.max(-85,Math.min(85,state.rotation.x-(e.clientY-py)*.4));px=e.clientX;py=e.clientY;applyRotation();});scene.addEventListener('pointerup',()=>down=false);scene.addEventListener('lostpointercapture',()=>down=false);
  for(const [id,x,y] of [['viewFront',0,0],['viewAngle',-22,-29],['viewTop',-80,0]])$(id).onclick=()=>{state.rotation={x,y};applyRotation();document.querySelectorAll('.view-buttons button').forEach(n=>n.classList.toggle('view-active',n.id===id));};}
 async function init(){try{const h=await api('/health');state.uatEnabled=!!h.uatDemoEnabled;state.paymentsEnabled=!!h.paymentsEnabled;state.aiProvider=h.aiProvider||'disabled'}catch{}document.querySelectorAll('[data-scroll],[data-kit]').forEach(()=>{});$('year').textContent=new Date().getFullYear();$('accountButton').addEventListener('click',async()=>{if(state.user){try{await api('/auth/logout',{method:'POST',body:{}});state.user=null;state.csrf=null;state.workspaceInitialized=false;updateAccount();loadWorkspace();notify('Signed out.');}catch(e){notify(e.message,true)}}else showAuth();});$('closeAuth').onclick=hideAuth;$('authModal').addEventListener('click',e=>{if(e.target===$('authModal'))hideAuth();});$('authModal').addEventListener('keydown',e=>{if(e.key==='Escape'){e.preventDefault();hideAuth();return;}if(e.key!=='Tab')return;const focusable=[...$('authModal').querySelectorAll('button:not(:disabled),input:not(:disabled)')].filter(node=>!node.closest('[hidden]')&&node.getClientRects().length);const first=focusable[0],last=focusable.at(-1);if(e.shiftKey&&document.activeElement===first){e.preventDefault();last.focus();}else if(!e.shiftKey&&document.activeElement===last){e.preventDefault();first.focus();}});$('authSwitch').onclick=()=>{state.authMode=state.authMode==='login'?'register':'login';updateAuthView();};$('authForm').addEventListener('submit',loginOrRegister);$('saveQuoteButton').onclick=saveQuote;$('customRfq').onclick=()=>chooseCategory('custom');$('menuToggle').onclick=()=>{const open=document.querySelector('.nav').classList.toggle('menu-open');$('menuToggle').setAttribute('aria-expanded',String(open));};document.querySelectorAll('.nav a').forEach(a=>a.addEventListener('click',()=>{document.querySelector('.nav').classList.remove('menu-open');$('menuToggle').setAttribute('aria-expanded','false')}));$('workspaceShell').addEventListener('click',e=>{if(e.target.id==='workspaceSignIn')showAuth();});document.addEventListener('click',clickHandler);document.addEventListener('submit',submitHandler);
  for(const id of ['productSelect','materialSelect','finishSelect','sidesSelect','stateSelect','rushInput','shipInput','destinationCountInput'])$(id).addEventListener('change',id==='productSelect'?()=>chooseCategory($('productSelect').value,false):requestEstimate);
  for(const id of ['quantityInput','lengthInput','widthInput','heightInput','designNotes'])$(id).addEventListener('input',debounce(requestEstimate));
  $('qtyMinus').onclick=()=>{$('quantityInput').value=Math.max(1,Number($('quantityInput').value)-1);requestEstimate()};$('qtyPlus').onclick=()=>{$('quantityInput').value=Math.min(100000,Number($('quantityInput').value)+1);requestEstimate()};
  document.querySelectorAll('.swatch').forEach(b=>b.addEventListener('click',()=>{state.boxColor=b.dataset.color;document.documentElement.style.setProperty('--box-color',state.boxColor);document.querySelectorAll('.swatch').forEach(s=>s.classList.toggle('selected',s===b));$('swatchName').textContent=b.getAttribute('aria-label');}));
- $('logoUpload').addEventListener('change',async e=>{const file=e.target.files[0];if(!file)return;if(file.size>2_000_000||!['image/png','image/jpeg'].includes(file.type))return notify('Preview logos must be PNG/JPEG under 2 MB. Production uploads require a secure artwork service.',true);const reader=new FileReader();reader.onload=()=>{$('previewBrand').replaceChildren();const image=document.createElement('img');image.src=reader.result;image.alt='Uploaded logo concept';$('previewBrand').append(image);notify('Logo preview updated locally. Upload to a secure proof workflow before ordering.');};reader.readAsDataURL(file);});
  $('categorySearch').addEventListener('input',debounce(categoryCards));document.querySelectorAll('[data-filter]').forEach(b=>b.addEventListener('click',()=>{state.filter=b.dataset.filter;document.querySelectorAll('[data-filter]').forEach(x=>x.classList.toggle('active',x===b));categoryCards();}));initRotation();
  try{state.catalog=await api('/catalog');fillSelect($('productSelect'),state.catalog.categories);kitContent();categoryCards();chooseCategory('welcome-kit',false);initStudioEnhancements();}catch(e){notify('Cannot load catalog. Start the DesignPro API server.',true);$('categoryGrid').innerHTML=renderEmpty('Catalog unavailable','Start the local API or check the server status.');}
  await initSession();}
@@ -214,44 +213,63 @@ function initStudioEnhancements(){
  panel.id='designStudioControls';
  panel.className='design-studio-controls';
  panel.innerHTML=
-  '<div class="designer-panel-heading"><div><span class="designer-kicker">THE DETAIL STUDIO</span><h3>Make every side yours.</h3><p>Choose a form, set individual face colours, add copy and place artwork.</p></div><span class="designer-status">LIVE PREVIEW</span></div>'+
-  '<div class="designer-grid">'+
-   '<section class="designer-card"><div class="designer-card-title"><span>01</span><h4>Shape & form</h4></div>'+
-    '<label class="designer-label" for="shapePreset">Shape preset</label><select id="shapePreset" class="field"><option value="rectangular">Rectangular box</option><option value="cube">Cube</option><option value="tall">Tall box</option><option value="flat">Flat print panel</option><option value="rounded">Rounded-edge box</option><option value="bottle">Bottle / cylinder</option><option value="label-sheet">Label sheet</option><option value="display">Display stand</option><option value="custom">Custom SVG profile</option></select>'+
-    '<label class="designer-label" for="customShapeUpload">Upload a custom shape / dieline (SVG)</label><input id="customShapeUpload" class="designer-file" type="file" accept=".svg,image/svg+xml">'+
-    '<div class="shape-import-preview"><img id="customShapeThumb" alt="Uploaded custom shape outline" hidden><p id="shapeImportStatus" role="status">SVG outline supported for a local concept overlay. CDR/DXF files need conversion to SVG.</p></div>'+
-    '<p class="designer-help">The preset changes the concept proportions. Entered millimetres remain the pricing dimensions. A custom SVG is a 2D reference, not an automatically engineered 3D mesh.</p></section>'+
-   '<section class="designer-card"><div class="designer-card-title"><span>02</span><h4>Design each side</h4></div>'+
-    '<div class="face-selector" id="faceSelector" role="group" aria-label="Choose product side">'+faces.map(function(face){return '<button type="button" data-face="'+face+'" aria-pressed="'+(face==='front'?'true':'false')+'">'+labels[face]+'</button>';}).join('')+'</div>'+
-    '<div class="face-editor-grid"><label class="designer-label" for="faceColorInput">Selected side colour</label><input id="faceColorInput" class="face-color-input" type="color" value="#373327"><label class="designer-label" for="faceTextInput">Text on this side</label><textarea id="faceTextInput" class="field" rows="2" maxlength="120" placeholder="Add a message for the selected side"></textarea>'+
-    '<div class="face-editor-options"><label class="designer-label" for="faceFontSize">Text size<input id="faceFontSize" class="field" type="number" min="10" max="32" value="16"></label><label class="designer-label" for="faceTextAlign">Alignment<select id="faceTextAlign" class="field"><option value="center">Centre</option><option value="left">Left</option><option value="right">Right</option></select></label></div>'+
+  '<div class="designer-panel-heading"><div><span class="designer-kicker">THE DETAIL STUDIO</span><h3>Design every side.</h3><p>Select a side below, then style its colour, copy and artwork.</p></div><span class="designer-status">LIVE PREVIEW</span></div>'+
+  '<div class="face-design-workspace">'+
+   '<div class="face-selector" id="faceSelector" role="tablist" aria-label="Choose product side">'+faces.map(function(face,index){return '<button type="button" role="tab" id="faceTab-'+face+'" aria-controls="faceEditorPanel" data-face="'+face+'" aria-selected="'+(face==='front'?'true':'false')+'" tabindex="'+(face==='front'?'0':'-1')+'">'+labels[face]+'</button>';}).join('')+'</div>'+
+   '<section class="face-editor-panel" id="faceEditorPanel" role="tabpanel" aria-labelledby="faceTab-front">'+
+    '<div class="face-editor-heading"><div><span class="designer-kicker">CURRENT SIDE</span><h4 id="activeFaceTitle">Front side</h4></div><span class="face-editor-hint">Changes update the 3D preview instantly</span></div>'+
+    '<div class="face-colour-row">'+
+     '<label class="designer-label" for="faceColorInput">Side background colour<input id="faceColorInput" class="face-color-input" type="color" value="#373327"></label>'+
+     '<label class="designer-label" for="faceFontColor">Text colour<input id="faceFontColor" class="face-color-input" type="color" value="#F4E6CF"></label>'+
+    '</div>'+
+    '<label class="designer-label" for="faceTextInput">Text on this side</label><textarea id="faceTextInput" class="field" rows="2" maxlength="120" placeholder="Add a message for this side"></textarea>'+
+    '<div class="face-typography-grid">'+
+     '<label class="designer-label" for="faceFontFamily">Font family<select id="faceFontFamily" class="field"><option value="serif">Elegant serif</option><option value="sans">Modern sans</option><option value="display">Bold display</option><option value="mono">Monospace</option></select></label>'+
+     '<label class="designer-label" for="faceFontStyle">Font style<select id="faceFontStyle" class="field"><option value="normal">Regular</option><option value="italic">Italic</option></select></label>'+
+     '<label class="designer-label" for="faceFontWeight">Font weight<select id="faceFontWeight" class="field"><option value="300">Light</option><option value="400">Regular</option><option value="500">Medium</option><option value="600">Semibold</option><option value="700">Bold</option><option value="800">Extra bold</option></select></label>'+
+     '<label class="designer-label" for="faceFontSize">Font size (px)<input id="faceFontSize" class="field" type="number" min="10" max="48" value="16"></label>'+
+     '<label class="designer-label" for="faceTextAlign">Text alignment<select id="faceTextAlign" class="field"><option value="left">Left</option><option value="center">Centre</option><option value="right">Right</option></select></label>'+
+    '</div>'+
     '<div class="face-editor-footer"><span id="faceTextCount">0 / 120</span><button type="button" class="designer-link" id="clearFaceText">Clear side text</button></div>'+
-    '<label class="designer-label" for="artworkUpload">Place artwork on selected side</label><input id="artworkUpload" class="designer-file" type="file" accept=".cdr,.ai,.eps,.pdf,.svg,.png,.jpg,.jpeg,.webp,.tif,.tiff">'+
-    '<p id="artworkImportStatus" class="designer-help" role="status">SVG and common image files can be previewed locally. CDR, AI, EPS and PDF metadata is extracted only where supported.</p></div>'+
+    '<div class="face-artwork-upload"><div><label class="designer-label" for="faceImageUpload">Image / logo on this side</label><input id="faceImageUpload" class="designer-file" type="file" accept="image/png,image/jpeg,image/webp,image/svg+xml"></div><button type="button" class="designer-link" id="clearFaceArtwork">Remove image</button></div>'+
+    '<p id="faceArtworkStatus" class="designer-help" role="status">Upload an image, then drag it directly on the 3D side to position it. Use the corner handle to resize. You can also drop an image onto a visible side.</p>'+
+    '<div class="face-editor-footer"><span id="faceTextCountMirror"> </span><span class="face-editor-hint">Each side keeps its own settings</span></div>'+
    '</section>'+
-   '<section class="designer-card designer-import-card"><div class="designer-card-title"><span>03</span><h4>Import an existing design</h4></div>'+
-    '<p>Choose a design file to inspect its dimensions and text. Detected measurements are suggestions—confirm the intended physical size before pricing.</p>'+
-    '<div class="import-format-list"><span>CDR</span><span>AI</span><span>EPS</span><span>PDF</span><span>SVG</span><span>PNG</span><span>JPG</span><span>WEBP</span></div>'+
-    '<p class="designer-help">Raw CDR is proprietary and cannot be reliably parsed in a browser. Export it from CorelDRAW as SVG or PDF for more useful extraction. Imported files stay in this browser session; they are not uploaded or stored by the server.</p></section>'+
-   '<section class="designer-card designer-ai-card"><div class="designer-card-title"><span>04</span><h4>AI design assistant</h4><span class="ai-local-tag">LOCAL AI · OPTIONAL</span></div>'+
-    '<p>Not sure how to design it? Describe your brand, audience, occasion and mood. A local model can suggest a shape, palette, finishes and side-specific copy.</p>'+
-    '<label class="designer-label" for="aiBrief">Describe your idea</label><textarea id="aiBrief" class="field" rows="3" maxlength="1500" placeholder="Example: A premium welcome box for a technology company, deep navy with copper foil, minimal typography and a warm message inside the lid."></textarea>'+
-    '<div class="ai-actions"><span id="aiConnectionStatus" role="status">Local AI is optional. Configure Ollama to enable concept generation.</span><button type="button" class="primary-button" id="generateAiConcept">Generate concept ↗</button></div>'+
-    '<div id="aiConceptResult" class="ai-concept-result" aria-live="polite"></div>'+
-    '<p class="designer-help">This assistant proposes a creative direction; it does not generate final print-ready artwork, guarantee production feasibility or set prices. No paid API key is required when using local Ollama.</p></section>'+
   '</div>';
+ const leftTools=document.createElement('div');
+ leftTools.id='leftStudioTools';
+ leftTools.className='left-studio-tools';
+ leftTools.innerHTML=
+  '<section class="designer-card left-shape-card"><div class="designer-card-title"><span>05</span><h4>Shape & form</h4></div>'+
+   '<label class="designer-label" for="shapePreset">Product shape</label><select id="shapePreset" class="field"><option value="rectangular">Rectangular box</option><option value="cube">Cube</option><option value="tall">Tall box</option><option value="flat">Flat print panel</option><option value="rounded">Rounded-edge box</option><option value="bottle">Bottle / cylinder</option><option value="label-sheet">Label sheet</option><option value="display">Display stand</option><option value="custom">Custom SVG profile</option></select>'+
+   '<label class="designer-label" for="customShapeUpload">Upload custom shape outline (SVG)</label><input id="customShapeUpload" class="designer-file" type="file" accept=".svg,image/svg+xml">'+
+   '<div class="shape-import-preview"><img id="customShapeThumb" alt="Uploaded custom shape outline" hidden><p id="shapeImportStatus" role="status">SVG outline supported for a local concept overlay. Other CAD formats need conversion.</p></div>'+
+   '<p class="designer-help">Custom SVG is a 2D reference, not an automatically engineered 3D mesh. Dimensions remain the pricing dimensions.</p></section>'+
+  '<details class="left-studio-details"><summary>Import an existing design file <span>＋</span></summary><section class="designer-card designer-import-card">'+
+   '<p>Inspect an existing file and suggest its page dimensions and readable text where supported.</p>'+
+   '<div class="import-format-list"><span>CDR</span><span>AI</span><span>EPS</span><span>PDF</span><span>SVG</span><span>PNG</span><span>JPG</span><span>WEBP</span></div>'+
+   '<label class="designer-label" for="artworkUpload">Select design file</label><input id="artworkUpload" class="designer-file" type="file" accept=".cdr,.ai,.eps,.pdf,.svg,.png,.jpg,.jpeg,.webp,.tif,.tiff">'+
+   '<p id="artworkImportStatus" class="designer-help" role="status">Raw CDR is proprietary. Export from CorelDRAW to SVG or PDF for useful extraction. Imported files stay in this browser session and are not uploaded.</p>'+
+   '</section></details>'+
+  '<details class="left-studio-details"><summary>AI design assistant <span class="ai-local-tag">LOCAL AI · OPTIONAL</span></summary><section class="designer-card designer-ai-card">'+
+   '<p>Describe your brand, audience, occasion and mood. Local AI can suggest a shape, palette, finish and side-specific copy.</p>'+
+   '<label class="designer-label" for="aiBrief">Describe your idea</label><textarea id="aiBrief" class="field" rows="3" maxlength="1500" placeholder="Example: A premium welcome box in deep navy with copper foil and minimal typography."></textarea>'+
+   '<div class="ai-actions"><span id="aiConnectionStatus" role="status">Configure local Ollama to enable concept generation.</span><button type="button" class="primary-button" id="generateAiConcept">Generate concept ↗</button></div>'+
+   '<div id="aiConceptResult" class="ai-concept-result" aria-live="polite"></div>'+
+   '<p class="designer-help">AI creates a design direction, not final print-ready artwork or prices. No paid API key is required with local Ollama.</p>'+
+   '</section></details>';
+ const controls=document.querySelector('.studio-controls');
+ const moreOptions=controls.querySelector('.more-options');
+ controls.insertBefore(leftTools,moreOptions);
+ const previewTools=document.querySelector('.preview-tools');
+ previewTools.insertAdjacentElement('afterend',panel);
  const swatches=document.querySelector('.swatches');
- swatches.insertAdjacentElement('afterend',panel);
- const toolbar=document.querySelector('.preview-toolbar');
- if(toolbar&&!document.getElementById('previewProductName')){
-  const name=document.createElement('span');name.id='previewProductName';name.className='preview-product-name';name.textContent='Corporate Welcome Kits';toolbar.append(name);
- }
+ if(swatches)swatches.remove();
  const viewButtons=document.querySelector('.view-buttons');
  if(viewButtons&&!$('view360Toggle'))viewButtons.insertAdjacentHTML('beforeend','<button type="button" id="view360Toggle" aria-pressed="false">360° view</button>');
- const tools=document.querySelector('.preview-tools');
- if(tools&&!$('rotationSlider'))tools.insertAdjacentHTML('beforeend','<label class="rotation-control" for="rotationSlider">Rotate <input id="rotationSlider" type="range" min="0" max="360" step="1" value="331"><output id="rotationValue">331°</output></label>');
+ if(previewTools&&!$('rotationSlider'))previewTools.insertAdjacentHTML('beforeend','<label class="rotation-control" for="rotationSlider">Rotate <input id="rotationSlider" type="range" min="0" max="360" step="1" value="331"><output id="rotationValue">331°</output></label>');
  const studio=state.designStudio;
- const colourInput=$('faceColorInput'),textInput=$('faceTextInput'),sizeInput=$('faceFontSize'),alignInput=$('faceTextAlign');
+ const colourInput=$('faceColorInput'),fontColorInput=$('faceFontColor'),textInput=$('faceTextInput'),fontFamilyInput=$('faceFontFamily'),fontStyleInput=$('faceFontStyle'),fontWeightInput=$('faceFontWeight'),sizeInput=$('faceFontSize'),alignInput=$('faceTextAlign');
  function safeSvg(raw){
   const doc=new DOMParser().parseFromString(raw,'image/svg+xml');
   if(doc.querySelector('parsererror')||!doc.documentElement||doc.documentElement.localName!=='svg')throw new Error('The selected SVG is not valid.');
@@ -278,22 +296,49 @@ function initStudioEnhancements(){
   $('lengthInput').value=String(Math.round(widthMm));$('widthInput').value=String(Math.round(heightMm));requestEstimate();
   return 'Suggested size: '+Math.round(widthMm)+' × '+Math.round(heightMm)+' mm ('+source+'). Confirm the physical dimensions before requesting a quote.';
  }
+ function typographyFor(face){
+  const defaults={fontFamily:'serif',fontStyle:'normal',fontColor:'#F4E6CF',fontWeight:'600',fontSize:16,textAlign:'center'};
+  if(!studio.faceTypography)studio.faceTypography={};
+  if(!studio.faceTypography[face])studio.faceTypography[face]=Object.assign({},defaults);
+  return studio.faceTypography[face];
+ }
+ function artworkPositionFor(face){
+  const defaults={left:20,top:18,width:60,height:60};
+  if(!studio.artworkPositions)studio.artworkPositions={};
+  if(!studio.artworkPositions[face])studio.artworkPositions[face]=Object.assign({},defaults);
+  return studio.artworkPositions[face];
+ }
  function renderFaceDesign(){
+  const fontFamilies={serif:'Georgia, "Times New Roman", serif',sans:'Arial, Helvetica, sans-serif',display:'Impact, Haettenschweiler, sans-serif',mono:'"Courier New", monospace'};
   faces.forEach(function(face){
    const node=document.querySelector('.product-cube .face.'+face);
    if(!node)return;
+   const typography=typographyFor(face);
    let text=node.querySelector('.face-custom-text');
    if(!text){text=document.createElement('span');text.className='face-custom-text';node.append(text);}
    const value=studio.faceTexts[face]||'';
-   text.textContent=value;text.hidden=!value;
-   text.style.fontSize=String(studio.fontSize||16)+'px';text.style.textAlign=studio.textAlign||'center';
-   text.style.justifyContent=(studio.textAlign==='left'?'flex-start':studio.textAlign==='right'?'flex-end':'center');
+   text.textContent=value;text.hidden=!value;node.classList.toggle('has-custom-text',!!value);
+   text.style.fontSize=String(typography.fontSize||16)+'px';
+   text.style.fontFamily=fontFamilies[typography.fontFamily]||fontFamilies.serif;
+   text.style.fontStyle=typography.fontStyle||'normal';
+   text.style.fontWeight=String(typography.fontWeight||'600');
+   text.style.color=typography.fontColor||'#F4E6CF';
+   text.style.textAlign=typography.textAlign||'center';
+   text.style.justifyContent=(typography.textAlign==='left'?'flex-start':typography.textAlign==='right'?'flex-end':'center');
    node.classList.toggle('has-artwork',!!artworkByFace[face]);
-   let art=node.querySelector('.face-artwork');
+   let frame=node.querySelector('.face-artwork-frame');
    if(artworkByFace[face]){
-    if(!art){art=document.createElement('img');art.className='face-artwork';art.alt='Imported artwork concept on '+labels[face]+' side';node.append(art);}
-    art.src=artworkByFace[face];
-   }else if(art)art.remove();
+    if(!frame){
+     frame=document.createElement('div');frame.className='face-artwork-frame';frame.dataset.face=face;
+     const art=document.createElement('img');art.className='face-artwork';art.alt='Imported artwork concept on '+labels[face]+' side';art.draggable=false;
+     const handle=document.createElement('button');handle.type='button';handle.className='face-artwork-resize';handle.setAttribute('aria-label','Resize '+labels[face]+' artwork');handle.title='Drag to resize';
+     frame.append(art,handle);node.append(frame);
+    }
+    frame.querySelector('img').src=artworkByFace[face];
+    const position=artworkPositionFor(face);
+    frame.style.left=position.left+'%';frame.style.top=position.top+'%';
+    frame.style.width=position.width+'%';frame.style.height=position.height+'%';
+   }else if(frame)frame.remove();
   });
   const topDefault=document.querySelector('.product-cube .face.top > span:not(.face-custom-text)');
   if(topDefault)topDefault.hidden=!!studio.faceTexts.top;
@@ -328,10 +373,22 @@ function initStudioEnhancements(){
  function selectFace(face){
   if(!faces.includes(face))return;
   studio.selectedFace=face;
-  document.querySelectorAll('#faceSelector [data-face]').forEach(function(button){button.setAttribute('aria-pressed',String(button.dataset.face===face));});
-  colourInput.value=studio.faceColors[face]||'#373327';textInput.value=studio.faceTexts[face]||'';
-  sizeInput.value=String(studio.fontSize||16);alignInput.value=studio.textAlign||'center';
+  document.querySelectorAll('#faceSelector [data-face]').forEach(function(button){
+   const selected=button.dataset.face===face;button.setAttribute('aria-selected',String(selected));button.setAttribute('tabindex',selected?'0':'-1');
+  });
+  const typography=typographyFor(face);
+  colourInput.value=studio.faceColors[face]||'#373327';
+  fontColorInput.value=typography.fontColor||'#F4E6CF';
+  textInput.value=studio.faceTexts[face]||'';
+  fontFamilyInput.value=typography.fontFamily||'serif';
+  fontStyleInput.value=typography.fontStyle||'normal';
+  fontWeightInput.value=String(typography.fontWeight||'600');
+  sizeInput.value=String(typography.fontSize||16);
+  alignInput.value=typography.textAlign||'center';
+  $('activeFaceTitle').textContent=labels[face]+' side';
+  $('faceEditorPanel').setAttribute('aria-labelledby','faceTab-'+face);
   $('faceTextCount').textContent=textInput.value.length+' / 120';
+  $('faceArtworkStatus').textContent=artworkByFace[face]?'Image ready. Drag it on the 3D side to position; drag the corner handle to resize.':'Upload an image, then drag it directly on the 3D side to position it. Use the corner handle to resize.';
  }
  function defaultShapeForCategory(){
   const category=state.catalog?.categories?.find(function(c){return c.id===state.category;});
@@ -342,11 +399,34 @@ function initStudioEnhancements(){
  $('shapePreset').value=studio.shape;
  $('shapePreset').addEventListener('change',function(){studio.shape=$('shapePreset').value;manualShape=true;updateModel();});
  $('faceSelector').addEventListener('click',function(event){const button=event.target.closest('[data-face]');if(button)selectFace(button.dataset.face);});
+ $('faceSelector').addEventListener('keydown',function(event){
+  const current=faces.indexOf(studio.selectedFace);let next=current;
+  if(event.key==='ArrowRight'||event.key==='ArrowDown')next=(current+1)%faces.length;
+  else if(event.key==='ArrowLeft'||event.key==='ArrowUp')next=(current-1+faces.length)%faces.length;
+  else if(event.key==='Home')next=0;
+  else if(event.key==='End')next=faces.length-1;
+  else return;
+  event.preventDefault();selectFace(faces[next]);$('faceTab-'+faces[next]).focus();
+ });
  colourInput.addEventListener('input',function(){studio.faceColors[studio.selectedFace]=colourInput.value.toUpperCase();updateModel();});
+ fontColorInput.addEventListener('input',function(){typographyFor(studio.selectedFace).fontColor=fontColorInput.value.toUpperCase();updateModel();});
  textInput.addEventListener('input',function(){studio.faceTexts[studio.selectedFace]=textInput.value.slice(0,120);$('faceTextCount').textContent=textInput.value.length+' / 120';updateModel();});
- sizeInput.addEventListener('input',function(){studio.fontSize=Math.max(10,Math.min(32,Number(sizeInput.value)||16));updateModel();});
- alignInput.addEventListener('change',function(){studio.textAlign=alignInput.value;updateModel();});
+ fontFamilyInput.addEventListener('change',function(){typographyFor(studio.selectedFace).fontFamily=fontFamilyInput.value;updateModel();});
+ fontStyleInput.addEventListener('change',function(){typographyFor(studio.selectedFace).fontStyle=fontStyleInput.value;updateModel();});
+ fontWeightInput.addEventListener('change',function(){typographyFor(studio.selectedFace).fontWeight=fontWeightInput.value;updateModel();});
+ sizeInput.addEventListener('input',function(){typographyFor(studio.selectedFace).fontSize=Math.max(10,Math.min(48,Number(sizeInput.value)||16));updateModel();});
+ alignInput.addEventListener('change',function(){typographyFor(studio.selectedFace).textAlign=alignInput.value;updateModel();});
  $('clearFaceText').addEventListener('click',function(){studio.faceTexts[studio.selectedFace]='';textInput.value='';$('faceTextCount').textContent='0 / 120';updateModel();});
+ $('faceImageUpload').addEventListener('change',async function(event){
+  const file=event.target.files&&event.target.files[0];if(!file)return;
+  try{await loadFaceImage(file,studio.selectedFace);}catch(error){$('faceArtworkStatus').textContent=error.message||'Could not load this image.';notify(error.message||'Could not load this image.',true);}
+  event.target.value='';
+ });
+ $('clearFaceArtwork').addEventListener('click',function(){
+  const face=studio.selectedFace;delete artworkByFace[face];delete studio.artworkFiles[face];studio.artworkPositions[face]={left:20,top:18,width:60,height:60};
+  $('faceImageUpload').value='';$('faceArtworkStatus').textContent='Image removed from the '+labels[face].toLowerCase()+' side preview.';
+  updateModel();requestEstimate();
+ });
  $('customShapeUpload').addEventListener('change',async function(event){
   const file=event.target.files&&event.target.files[0];if(!file)return;
   if(file.size>5*1024*1024)return notify('Custom SVG must be smaller than 5 MB.',true);
@@ -383,7 +463,7 @@ function initStudioEnhancements(){
    }else if(ext==='cdr'){
     $('artworkImportStatus').textContent='CDR file recognised. CorelDRAW uses a proprietary format; export as SVG or PDF for reliable dimension and text extraction. This file has not been uploaded.';
    }else throw new Error('Supported formats: CDR, AI, EPS, PDF, SVG, PNG, JPG, WEBP and TIFF.');
-   if(previewData)artworkByFace[face]=previewData;
+   if(previewData){artworkByFace[face]=previewData;if(!studio.artworkPositions?.[face])studio.artworkPositions[face]={left:20,top:18,width:60,height:60};}
    studio.artworkFiles[face]={fileName:file.name.slice(0,180),sizeBytes:file.size,mimeType:(file.type||ext).slice(0,100)};
    let message='Selected '+file.name+'. ';
    if(widthMm&&heightMm)message+=setDetectedDimensions(widthMm,heightMm,source);
@@ -394,7 +474,62 @@ function initStudioEnhancements(){
    $('artworkImportStatus').textContent=message;updateModel();notify('Artwork inspected for the '+labels[face].toLowerCase()+' side. Review the detected size before pricing.');
   }catch(error){$('artworkImportStatus').textContent=error.message||'Could not inspect the selected artwork.';notify(error.message||'Could not inspect the selected artwork.',true);}
  });
- $('productSelect').addEventListener('change',function(){defaultShapeForCategory();updateModel();});
+  function clampPercent(value,min,max){return Math.max(min,Math.min(max,value));}
+ async function loadFaceImage(file,face){
+  if(!faces.includes(face))face=studio.selectedFace;
+  if(!file||file.size>15*1024*1024)throw new Error('Choose an image smaller than 15 MB.');
+  const ext=(file.name.split('.').pop()||'').toLowerCase();
+  let preview='';
+  if(ext==='svg'||file.type==='image/svg+xml')preview=safeSvg(await file.text());
+  else if(['png','jpg','jpeg','webp'].includes(ext)||['image/png','image/jpeg','image/webp'].includes(file.type)){
+   const bitmap=await createImageBitmap(file);bitmap.close?.();preview=await readDataUrl(file);
+  }else throw new Error('Use PNG, JPG, WEBP or SVG for a side image.');
+  artworkByFace[face]=preview;
+  studio.artworkFiles[face]={fileName:file.name.slice(0,180),sizeBytes:file.size,mimeType:(file.type||ext).slice(0,100)};
+  if(!studio.artworkPositions?.[face])studio.artworkPositions[face]={left:20,top:18,width:60,height:60};
+  $('faceArtworkStatus').textContent=file.name+' added to the '+labels[face].toLowerCase()+' side. Drag it on the preview to position; use the corner handle to resize.';
+  updateModel();requestEstimate();
+  notify('Image added to the '+labels[face].toLowerCase()+' side. It is a local preview only.');
+ }
+ cube.addEventListener('dragover',function(event){
+  if(event.dataTransfer?.types?.includes('Files')||Array.from(event.dataTransfer?.files||[]).some(file=>file.type.startsWith('image/')||/\.svg$/i.test(file.name))){event.preventDefault();const face=event.target.closest('.face');if(face)face.classList.add('face-drop-target');}
+ });
+ cube.addEventListener('dragleave',function(event){const face=event.target.closest('.face');if(face)face.classList.remove('face-drop-target');});
+ cube.addEventListener('drop',async function(event){
+  const file=Array.from(event.dataTransfer?.files||[]).find(item=>item.type.startsWith('image/')||/\.svg$/i.test(item.name));
+  if(!file)return;
+  event.preventDefault();event.stopPropagation();
+  const faceNode=event.target.closest('.face');if(faceNode)faceNode.classList.remove('face-drop-target');
+  const face=faces.find(name=>faceNode?.classList.contains(name))||studio.selectedFace;
+  try{await loadFaceImage(file,face);selectFace(face);}catch(error){notify(error.message||'Could not place the dropped image.',true);}
+ });
+ let artworkGesture=null;
+ cube.addEventListener('pointerdown',function(event){
+  const frame=event.target.closest('.face-artwork-frame');if(!frame)return;
+  const face=frame.dataset.face,position=artworkPositionFor(face),faceNode=frame.parentElement;
+  artworkGesture={face,frame,pointerId:event.pointerId,mode:event.target.closest('.face-artwork-resize')?'resize':'move',startX:event.clientX,startY:event.clientY,faceWidth:Math.max(1,faceNode.clientWidth),faceHeight:Math.max(1,faceNode.clientHeight),start:{left:position.left,top:position.top,width:position.width,height:position.height}};
+  try{frame.setPointerCapture(event.pointerId);}catch{}
+  event.preventDefault();event.stopPropagation();
+ });
+ cube.addEventListener('pointermove',function(event){
+  if(!artworkGesture||event.pointerId!==artworkGesture.pointerId)return;
+  const gesture=artworkGesture,position=artworkPositionFor(gesture.face);
+  const dx=(event.clientX-gesture.startX)/gesture.faceWidth*100,dy=(event.clientY-gesture.startY)/gesture.faceHeight*100;
+  if(gesture.mode==='resize'){
+   position.width=clampPercent(gesture.start.width+dx,12,100-gesture.start.left);
+   position.height=clampPercent(gesture.start.height+dy,12,100-gesture.start.top);
+  }else{
+   position.left=clampPercent(gesture.start.left+dx,0,100-gesture.start.width);
+   position.top=clampPercent(gesture.start.top+dy,0,100-gesture.start.height);
+  }
+  gesture.frame.style.left=position.left+'%';gesture.frame.style.top=position.top+'%';
+  gesture.frame.style.width=position.width+'%';gesture.frame.style.height=position.height+'%';
+  event.preventDefault();event.stopPropagation();
+ });
+ function finishArtworkGesture(event){if(artworkGesture&&(!event||event.pointerId===artworkGesture.pointerId)){artworkGesture=null;if(event){event.preventDefault();event.stopPropagation();}}}
+ cube.addEventListener('pointerup',finishArtworkGesture);
+ cube.addEventListener('pointercancel',finishArtworkGesture);
+$('productSelect').addEventListener('change',function(){defaultShapeForCategory();updateModel();});
  ['materialSelect','finishSelect','lengthInput','widthInput','heightInput'].forEach(function(id){$(id).addEventListener('input',updateModel);$(id).addEventListener('change',updateModel);});
  document.querySelectorAll('.swatch').forEach(function(button){button.addEventListener('click',function(){faces.forEach(function(face){studio.faceColors[face]=state.boxColor;});selectFace(studio.selectedFace);updateModel();});});
  const slider=$('rotationSlider'),rotationValue=$('rotationValue'),toggle=$('view360Toggle');

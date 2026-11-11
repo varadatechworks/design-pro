@@ -20,9 +20,38 @@ function normalizeDesignStudio(value){
   if(typeof text!=='string'||text.length>120)throw new Error('Side text must be 120 characters or fewer');
   faceColors[face]=color.toUpperCase();faceTexts[face]=text.trim();
  }
- const fontSize=integer(value.fontSize??16,10,32,'Preview text size');
+ const fontSize=integer(value.fontSize??16,10,48,'Preview text size');
  const textAlign=value.textAlign??'center';
  if(!['left','center','right'].includes(textAlign))throw new Error('Invalid side text alignment');
+ const rawTypography=value.faceTypography??{};
+ if(!rawTypography||typeof rawTypography!=='object'||Array.isArray(rawTypography))throw new Error('Side typography must be an object');
+ const faceTypography={};
+ for(const face of DESIGN_FACES){
+  const item=rawTypography[face]??{};
+  if(!item||typeof item!=='object'||Array.isArray(item))throw new Error('Invalid typography for '+face+' side');
+  const fontFamily=item.fontFamily??'serif',fontStyle=item.fontStyle??'normal',fontWeight=String(item.fontWeight??'600');
+  const fontColor=item.fontColor??'#F4E6CF',sideFontSize=integer(item.fontSize??16,10,48,'Side font size');
+  const sideTextAlign=item.textAlign??'center';
+  if(!['serif','sans','display','mono'].includes(fontFamily))throw new Error('Unsupported font family');
+  if(!['normal','italic'].includes(fontStyle))throw new Error('Unsupported font style');
+  if(!['300','400','500','600','700','800'].includes(fontWeight))throw new Error('Unsupported font weight');
+  if(typeof fontColor!=='string'||!/^#[0-9a-f]{6}$/i.test(fontColor))throw new Error('Side font colour must be a six-digit hex value');
+  if(!['left','center','right'].includes(sideTextAlign))throw new Error('Invalid side text alignment');
+  faceTypography[face]={fontFamily,fontStyle,fontColor:fontColor.toUpperCase(),fontWeight,fontSize:sideFontSize,textAlign:sideTextAlign};
+ }
+ const rawPositions=value.artworkPositions??{};
+ if(!rawPositions||typeof rawPositions!=='object'||Array.isArray(rawPositions))throw new Error('Artwork positions must be an object');
+ const artworkPositions={};
+ const percent=(v,min,max,label)=>{const n=Number(v);if(!Number.isFinite(n)||n<min||n>max)throw new Error(label+' must be between '+min+' and '+max);return Math.round(n*10)/10;};
+ for(const face of DESIGN_FACES){
+  const item=rawPositions[face]??{};
+  if(!item||typeof item!=='object'||Array.isArray(item))throw new Error('Invalid artwork position for '+face+' side');
+  const left=percent(item.left??20,0,88,'Artwork left position');
+  const top=percent(item.top??18,0,88,'Artwork top position');
+  const width=percent(item.width??60,12,100-left,'Artwork width');
+  const height=percent(item.height??60,12,100-top,'Artwork height');
+  artworkPositions[face]={left,top,width,height};
+ }
  const customShapeFileName=value.customShapeFileName??'';
  if(typeof customShapeFileName!=='string'||customShapeFileName.length>120)throw new Error('Custom shape filename is invalid');
  const sourceFiles=value.artworkFiles??{};
@@ -38,7 +67,7 @@ function normalizeDesignStudio(value){
  }
  const aiConcept=value.aiConcept??null;
  if(aiConcept!==null&&(typeof aiConcept!=='string'||aiConcept.length>120))throw new Error('AI concept name is invalid');
- return {shape,faceColors,faceTexts,fontSize,textAlign,customShapeFileName,artworkFiles,aiConcept};
+ return {shape,faceColors,faceTexts,fontSize,textAlign,faceTypography,artworkPositions,customShapeFileName,artworkFiles,aiConcept};
 }
 
 const line=(code,label,costMinor)=>({code,label,costMinor});

@@ -51,6 +51,26 @@ def page_setup(browser,viewport,role):
  page.wait_for_timeout(230)
  assert not errors,errors
  assert page.locator('#designStudioControls').count()==1
+ assert page.locator('.delivery-options').evaluate("(el)=>el.closest('.estimate-panel')!==null")
+ assert page.locator('#stateSelect').evaluate("(el)=>el.closest('.studio-controls')===null")
+ assert page.locator('#shapePreset').evaluate("(el)=>el.closest('.studio-controls')!==null")
+ assert page.locator('#faceSelector').evaluate("(el)=>el.closest('.studio-center')!==null")
+ assert page.locator('#faceSelector [role=tab]').count()==6
+ assert page.locator('#view360Toggle').count()==1
+ assert page.locator('#rotationSlider').count()==1
+ assert page.locator('#rotationValue').inner_text()=='331°'
+ page.locator('#stateSelect').select_option('KA')
+ page.locator('#destinationCountInput').fill('2')
+ page.locator('#shipInput').uncheck()
+ delivery_payload=page.evaluate("()=>JSON.parse([...window.__requests].filter(x=>x.path.endsWith('/estimate')).at(-1).body)")
+ assert delivery_payload['destinationState']=='KA'
+ assert delivery_payload['destinationCount']==2
+ assert delivery_payload['shipping'] is False
+ page.locator('#faceTab-front').focus()
+ page.keyboard.press('End')
+ assert page.locator('#faceTab-bottom').get_attribute('aria-selected')=='true'
+ page.keyboard.press('Home')
+ assert page.locator('#faceTab-front').get_attribute('aria-selected')=='true'
  page.locator('#productSelect').select_option('corporate-gift')
  assert page.locator('.product-cube').get_attribute('data-shape')=='bottle'
  page.locator('#productSelect').select_option('labels')
@@ -63,20 +83,66 @@ def page_setup(browser,viewport,role):
  page.locator('#faceColorInput').fill('#234567')
  assert page.locator('.product-cube').evaluate("(el)=>el.style.getPropertyValue('--face-back')")=='#234567'
  page.locator('#faceTextInput').fill('Made for you')
+ page.locator('#faceFontFamily').select_option('sans')
+ page.locator('#faceFontStyle').select_option('italic')
+ page.locator('#faceFontWeight').select_option('800')
+ page.locator('#faceFontColor').fill('#ffffff')
+ page.locator('#faceFontSize').fill('24')
+ page.locator('#faceTextAlign').select_option('right')
  assert page.locator('.face.back .face-custom-text').inner_text()=='Made for you'
+ assert page.locator('.face.back .face-custom-text').evaluate("(el)=>el.style.fontStyle")=='italic'
+ assert page.locator('.face.back .face-custom-text').evaluate("(el)=>el.style.fontWeight")=='800'
+ assert page.locator('.face.back .face-custom-text').evaluate("(el)=>el.style.color")=='rgb(255, 255, 255)'
+ page.locator('[data-face="front"]').click()
+ page.locator('[data-face="back"]').click()
+ assert page.locator('#faceFontFamily').input_value()=='sans'
+ assert page.locator('#faceFontSize').input_value()=='24'
  page.locator('#shapePreset').select_option('cube')
  assert page.locator('.product-cube').get_attribute('data-shape')=='cube'
+ page.locator('#rotationSlider').fill('120')
+ assert page.locator('#rotationValue').inner_text()=='120°'
  page.locator('#view360Toggle').click()
  assert page.locator('#cubeScene').evaluate("(el)=>el.classList.contains('is-spinning')")
+ assert page.locator('#view360Toggle').get_attribute('aria-pressed')=='true'
  page.locator('#view360Toggle').click()
+ assert not page.locator('#cubeScene').evaluate("(el)=>el.classList.contains('is-spinning')")
  svg={"name":"outline.svg","mimeType":"image/svg+xml","buffer":b'<svg xmlns="http://www.w3.org/2000/svg" width="200mm" height="150mm" viewBox="0 0 200 150"><rect x="4" y="4" width="192" height="142" fill="none" stroke="#222"/><text x="10" y="20">Brand line</text></svg>'}
  page.locator('#customShapeUpload').set_input_files(svg)
  page.wait_for_timeout(50)
  assert not page.locator('#customShapeThumb').is_hidden()
+ page.locator('.left-studio-details > summary').first.click()
  page.locator('#artworkUpload').set_input_files(svg)
  page.wait_for_timeout(60)
  assert '200 × 150 mm' in page.locator('#artworkImportStatus').inner_text()
- assert page.locator('.face.back .face-artwork').count()==1
+ assert page.locator('.face.back .face-artwork-frame').count()==1
+ page.locator('[data-face="front"]').click()
+ page.locator('#faceImageUpload').set_input_files(svg)
+ page.wait_for_timeout(60)
+ frame=page.locator('.face.front .face-artwork-frame')
+ assert frame.count()==1
+ assert frame.locator('img').get_attribute('draggable')=='false'
+ assert frame.locator('img').evaluate("(el)=>getComputedStyle(el).pointerEvents")=='auto'
+ # Return the model to a front-facing view so the overlay is not occluded by another 3D face.
+ page.locator('#viewFront').click()
+ frame.scroll_into_view_if_needed()
+ page.wait_for_timeout(300)
+ before=frame.evaluate("(el)=>el.style.left")
+ bounds=frame.bounding_box()
+ page.mouse.move(bounds['x']+bounds['width']/2,bounds['y']+bounds['height']/2)
+ page.mouse.down()
+ page.mouse.move(bounds['x']+bounds['width']/2+18,bounds['y']+bounds['height']/2+12,steps=3)
+ page.mouse.up()
+ after=frame.evaluate("(el)=>el.style.left")
+ assert before!=after,'Artwork should be draggable on the selected product side'
+ handle=frame.locator('.face-artwork-resize')
+ handle_bounds=handle.bounding_box()
+ width_before=frame.evaluate("(el)=>el.style.width")
+ page.mouse.move(handle_bounds['x']+handle_bounds['width']/2,handle_bounds['y']+handle_bounds['height']/2)
+ page.mouse.down()
+ page.mouse.move(handle_bounds['x']+handle_bounds['width']/2+14,handle_bounds['y']+handle_bounds['height']/2+10,steps=3)
+ page.mouse.up()
+ width_after=frame.evaluate("(el)=>el.style.width")
+ assert width_before!=width_after,'Artwork resize handle should change the image size'
  assert not page.evaluate('document.documentElement.scrollWidth > innerWidth'),'Unexpected horizontal overflow after design studio interaction'
  return page,errors
 
