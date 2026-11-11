@@ -309,7 +309,7 @@ function initStudioEnhancements(){
   const radius=studio.shape==='rounded'?14:studio.shape==='custom'?8:3;
   const values={'--cube-w':w+'px','--cube-h':h+'px','--cube-d':d+'px','--cube-d-half':(d/2)+'px','--cube-w-half':(w/2)+'px','--cube-h-half':(h/2)+'px','--cube-left':((w-d)/2)+'px','--cube-top':((h-d)/2)+'px','--cube-radius':radius+'px'};
   Object.entries(values).forEach(function(pair){cube.style.setProperty(pair[0],pair[1]);});
-  cube.dataset.shape=studio.shape;cube.dataset.material=$('materialSelect').value||'premium';cube.dataset.finish=$('finishSelect').value||'matte';
+  cube.dataset.shape=studio.shape;cube.classList.toggle('is-rounded',studio.shape==='rounded');cube.dataset.material=$('materialSelect').value||'premium';cube.dataset.finish=$('finishSelect').value||'matte';
   faces.forEach(function(face){cube.style.setProperty('--face-'+face,studio.faceColors[face]||state.boxColor||'#373327');});
   const title=category?category.name:'Custom product';
   if($('previewProductName'))$('previewProductName').textContent=title+' · '+(studio.shape==='custom'?'Custom profile':studio.shape.replaceAll('_',' '));
