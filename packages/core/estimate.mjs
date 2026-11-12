@@ -126,7 +126,7 @@ export function estimate(input,rateCard={},catalog=CATEGORIES){
   (c.scope!=='material'||c.material_id===material)&&(c.scope!=='kit'||selected[c.material_id]===true)&&
   (c.condition==='always'||(c.condition==='finish'&&c.option_id===finish)||(c.condition==='printing'&&printSides>0)||(c.condition==='rush'&&Boolean(input.rush)))&&!(c.scope==='shipping'&&input.shipping===false));
  const hasConfiguredMaterial=applicable.some(c=>c.scope==='material');
- if(applicable.some(c=>c.scope==='kit'))itemCost=0;
+ if(applicable.some(c=>c.scope==='kit'))itemCost=Object.entries(selected).reduce((acc,[id,on])=>acc+(on&&!applicable.some(c=>c.scope==='kit'&&c.material_id===id)?KIT_ITEMS[id].costMinor:0),0);
  const componentModel=hasConfiguredMaterial&&components.length>0;
  let rawMaterial=0,scrap=0,setup=0,assembly=0,rush=0,shipping=0,processing=0;
  const componentLines=[];
@@ -192,7 +192,7 @@ export function estimate(input,rateCard={},catalog=CATEGORIES){
   ...(printSides>0&&!applicable.some(c=>c.condition==='printing')?['printing']:[]),
   ...(finish!=='none'&&!applicable.some(c=>c.condition==='finish'&&c.option_id===finish)?['selected finish']:[]),
   ...(input.shipping!==false&&!applicable.some(c=>c.scope==='shipping')?['shipping']:[]),
-  ...(category.kind==='kit'&&Object.values(selected).some(Boolean)&&!applicable.some(c=>c.scope==='kit')?['kit item']:[])
+  ...(category.kind==='kit'&&Object.entries(selected).some(([id,on])=>on&&!applicable.some(c=>c.scope==='kit'&&c.material_id===id))?['kit item']:[])
  ]:[];
  const requiresReview = category.kind==='rfq'||length>600||width>600||height>500||quantity>20000||Boolean(input.customerSuppliedMaterial)|| (category.kind==='laser'&&!input.cutPathMm)|| Boolean(input.customDie)||missingCostScopes.length>0;
  const warnings=[];
