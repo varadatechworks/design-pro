@@ -105,7 +105,7 @@ export function estimate(input,rateCard={},catalog=CATEGORIES){
  const printSides=integer(input.printSides??1,1,2,'Print sides');
  const designComplexity=integer(input.designComplexity??1,1,4,'Design complexity');
  const unitsPerCarton=integer(input.unitsPerCarton??25,1,500,'Units per carton');
- const activeRate=rateCard[category.id]||rateCard;
+ const activeRate={...rateCard,...(rateCard[category.id]||{})};
  const baseUnit=integer(activeRate.baseUnitMinor??category.base,0,10000000,'Unit rate');
  const fixedSetup=integer(activeRate.setupMinor??category.setup,0,100000000,'Setup rate');
  const areaRatio=Math.max(0.3,Math.min(14,(length*width)/(240*180)));
