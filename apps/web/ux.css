@@ -320,3 +320,11 @@ button{cursor:pointer}
 }
 
 .face.has-custom-text .preview-brand,.face.has-custom-text .face-small{display:none!important}
+
+/* Lightweight canvas text object: move and resize directly on each product face. */
+.product-cube .face-text-frame{position:absolute!important;z-index:7!important;box-sizing:border-box;display:flex;align-items:stretch;justify-content:stretch;border:1px dashed #ffffffb5;border-radius:2px;cursor:move;touch-action:none;user-select:none;min-width:18%;min-height:10%;}
+.product-cube .face-text-frame .face-custom-text{position:relative!important;inset:auto!important;left:auto!important;right:auto!important;top:auto!important;bottom:auto!important;display:flex!important;flex:1;align-items:center;justify-content:center;min-width:0;min-height:0;padding:2px 5px;line-height:1.2;overflow:hidden;overflow-wrap:anywhere;white-space:pre-wrap;z-index:1!important;text-shadow:0 1px 4px #0008;pointer-events:none;}
+.product-cube .face-text-frame .face-custom-text[hidden]{display:none!important}
+.face-text-resize{position:absolute!important;right:-7px;bottom:-7px;width:16px;height:16px;min-width:16px;min-height:16px;padding:0;border:2px solid #fff;border-radius:50%;background:#b87555;box-shadow:0 1px 4px #0005;cursor:nwse-resize;touch-action:none;z-index:10!important}
+.product-cube .face-text-frame:focus-within,.product-cube .face-text-frame:hover{border-color:#fff;box-shadow:0 0 0 1px #b87555;}
+@media(prefers-reduced-motion:reduce){.product-cube .face-text-frame,.face-text-resize{transition:none!important}}
