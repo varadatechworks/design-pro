@@ -22,6 +22,7 @@ async function costs(){
  const [d,cat,catalog]=await Promise.all([api('/admin/management/cost-components'),api('/admin/management/categories'),api('/catalog')]);
  const categories=cat.categories.filter(x=>x.active);
  const materialOptions=[...Object.entries(catalog.materials||{}).map(([id,m])=>({value:id,label:'Material · '+(m.name||id)})),...Object.entries(catalog.kitItems||{}).map(([id,m])=>({value:id,label:'Kit item · '+(m.name||id)}))];
+ const finishOptions=[{value:'',label:'Not finish-specific'},...Object.entries(catalog.finishes||{}).map(([id,m])=>({value:id,label:(m.name||id)+' · '+id}))];
  const scopeOptions=[{value:'material',label:'Raw material'},{value:'kit',label:'Kit item / purchased component'},{value:'production',label:'Production operation'},{value:'packing',label:'Packing / assembly'},{value:'shipping',label:'Shipping / handling'}];
  const conditionOptions=[{value:'always',label:'Always apply'},{value:'finish',label:'Only when selected finish matches'},{value:'printing',label:'When printing is selected'},{value:'rush',label:'Rush orders only'}];
  const basisOptions=[{value:'sqm',label:'Per square metre (m²)'},{value:'piece',label:'Per finished piece'},{value:'1000_impressions',label:'Per 1,000 print impressions'},{value:'meter',label:'Per running metre'},{value:'hour',label:'Per production hour'},{value:'flat',label:'One-time fixed charge'}];
@@ -32,14 +33,14 @@ async function costs(){
  selectField('Applies to category (optional)','categoryId',[{value:'',label:'All categories'},...categories.map(c=>({value:c.id,label:c.name}))],'')+
  selectField('Raw material or kit item','materialId',[{value:'',label:'Select material'},...materialOptions],'')+
  selectField('When to apply','condition',conditionOptions,'always')+
- formField('Finish ID (only for finish-specific costs)','optionId','','text')+
+ selectField('Finish ID (only for finish-specific costs)','optionId',finishOptions,'')+
  selectField('Rate basis','basis',basisOptions,'sqm')+
  formField('Rate (₹ per basis unit)','rate','0','number',false,'min="0" step="0.01" required')+
  formField('Consumption factor','factor','1','number',false,'min="0" step="0.001" required')+
  formField('Wastage (%)','waste','0','number',false,'min="0" max="50" step="0.01"')+
  formField('Effective from','effectiveFrom',new Date().toISOString().slice(0,10),'date')+
  '</div><div class="form-actions"><button class="primary">Save production cost</button></div><p class="hint">For example: board at ₹___ / m² with 8% wastage; cutting at ₹___ / running metre; printing at ₹___ / 1,000 impressions; packing at ₹___ / piece. Use a finish ID such as <code>matte</code> or <code>foil</code> for finish-specific charges.</p></form></div>'+
- table(['Type / label','Scope','Basis','Rate','Wastage','Effective','Actions'],d.components.map(c=>'<tr><td><strong>'+esc(c.label)+'</strong><br><small>'+esc(c.code)+'</small></td><td>'+esc(c.scope)+(c.material_id?' · '+esc(c.material_id):'')+(c.category_id?' · '+esc(c.category_id):'')+'</td><td>'+esc(c.basis)+(c.condition!=='always'?' · '+esc(c.condition)+(c.option_id?' / '+esc(c.option_id):''):'')+'</td><td>'+money(c.rate_minor)+'</td><td>'+(c.waste_bps/100)+'%</td><td>'+esc(c.effective_from)+'</td><td>'+(c.active?'<button class="action danger" data-archive-cost="'+esc(c.id)+'">Archive</button>':'<span class="badge">Archived</span>')+'</td></tr>'));
+ table(['Type / label','Scope','Basis','Rate','Factor','Wastage','Effective','Actions'],d.components.map(c=>'<tr><td><strong>'+esc(c.label)+'</strong><br><small>'+esc(c.code)+'</small></td><td>'+esc(c.scope)+(c.material_id?' · '+esc(c.material_id):'')+(c.category_id?' · '+esc(c.category_id):'')+'</td><td>'+esc(c.basis)+(c.condition!=='always'?' · '+esc(c.condition)+(c.option_id?' / '+esc(c.option_id):''):'')+'</td><td>'+money(c.rate_minor)+'</td><td>'+(c.factor_milli/1000)+'×</td><td>'+(c.waste_bps/100)+'%</td><td>'+esc(c.effective_from)+'</td><td>'+(c.active?'<button class="action danger" data-archive-cost="'+esc(c.id)+'">Archive</button>':'<span class="badge">Archived</span>')+'</td></tr>'));
  $('costForm').onsubmit=async e=>{e.preventDefault();const f=e.currentTarget,x=Object.fromEntries(new FormData(f).entries());try{
   x.rateMinor=toMinor(x.rate);x.factorMilli=Math.round(Number(x.factor)*1000);x.wasteBps=Math.round(Number(x.waste)*100);
   delete x.rate;delete x.factor;delete x.waste;
