@@ -14,7 +14,7 @@ function seed(db){
  const n=now(),ins=db.prepare('INSERT OR IGNORE INTO catalog_categories (id,name,tag,icon,base_minor,setup_minor,lead_days,materials,finishes,kind,active,sort_order,updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)');
  for(let i=0;i<CATEGORIES.length;i++){const c=CATEGORIES[i];ins.run(c.id,c.name,c.tag,c.icon,c.base,c.setup,c.days,JSON.stringify(c.materials),JSON.stringify(c.finishes),c.kind,1,i,n);}
  const page=db.prepare('INSERT OR IGNORE INTO site_content (content_key,value,updated_at) VALUES (?,?,?)');
- for(const [k,v] of Object.entries({heroEyebrow:'CRAFTED WITH INTENTION · MADE TO IMPRESS',heroDescription:'Custom packaging, premium gift boxes, corporate welcome kits and precision printing — designed by you, thoughtfully made by us.',footerDescription:'Thoughtful design. Exceptional craftsmanship. A little bit of magic in every box.',contactEmail:'',contactPhone:'',announcement:''}))page.run(k,v,n);
+ for(const [k,v] of Object.entries({heroEyebrow:'CRAFTED WITH INTENTION · MADE TO IMPRESS',heroTitle:'Beyond ordinary. Made for wonder.',heroDescription:'Custom packaging, premium gift boxes, corporate welcome kits and precision printing — designed by you, thoughtfully made by us.',footerDescription:'Thoughtful design. Exceptional craftsmanship. A little bit of magic in every box.',contactEmail:'',contactPhone:'',announcement:''}))page.run(k,v,n);
 }
 function rows(db,sql,...args){return db.prepare(sql).all(...args);}
 export function migrateAdmin(db){
@@ -98,7 +98,7 @@ export async function handleAdminApi({db,req,res,pathname}){
  }
  if(resource==='content'){
   if(req.method==='GET')return send(res,200,{content:Object.fromEntries(rows(db,'SELECT content_key,value FROM site_content').map(x=>[x.content_key,x.value]))});
-  if(req.method==='PUT'){const x=await read(req),entries=x.content;if(!entries||typeof entries!=='object'||Array.isArray(entries))throw fail(400,'Content object required');const allowed=['heroEyebrow','heroDescription','footerDescription','contactEmail','contactPhone','announcement'];runAtomic(db,()=>{for(const key of allowed)if(key in entries){const value=text(String(entries[key]),key,1200,false);db.prepare('INSERT INTO site_content(content_key,value,updated_at) VALUES (?,?,?) ON CONFLICT(content_key) DO UPDATE SET value=excluded.value,updated_at=excluded.updated_at').run(key,value,now());}audit(db,actor.id,'site.content.updated','site_content','homepage',{keys:Object.keys(entries).filter(k=>allowed.includes(k))});});return send(res,200,{saved:true});}
+  if(req.method==='PUT'){const x=await read(req),entries=x.content;if(!entries||typeof entries!=='object'||Array.isArray(entries))throw fail(400,'Content object required');const allowed=['heroEyebrow','heroTitle','heroDescription','footerDescription','contactEmail','contactPhone','announcement'];runAtomic(db,()=>{for(const key of allowed)if(key in entries){const value=text(String(entries[key]),key,1200,false);db.prepare('INSERT INTO site_content(content_key,value,updated_at) VALUES (?,?,?) ON CONFLICT(content_key) DO UPDATE SET value=excluded.value,updated_at=excluded.updated_at').run(key,value,now());}audit(db,actor.id,'site.content.updated','site_content','homepage',{keys:Object.keys(entries).filter(k=>allowed.includes(k))});});return send(res,200,{saved:true});}
  }
  if(resource==='pages'){
   if(req.method==='GET')return send(res,200,{pages:rows(db,'SELECT * FROM cms_pages ORDER BY updated_at DESC')});
