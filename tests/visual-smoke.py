@@ -259,8 +259,21 @@ def run():
    assert pg.locator('#shipmentDestinationSelect option').count()==1
    pg.locator('[data-tab="orders"]').click()
    pg.locator('[data-detail="ord_UAT_SAMPLE_00001"]').click()
-   pg.wait_for_timeout(40)
-   assert pg.locator('.detail-panel').count()==1
+   try:
+    pg.wait_for_function("""() => {
+     const panel=document.querySelector('#orderDetails .detail-panel');
+     return !!panel && panel.textContent.includes('Production & delivery journey');
+    }""",timeout=5000)
+   except Exception as exc:
+    diagnostics=pg.evaluate("""() => ({
+     detailHost:document.querySelector('#orderDetails')?.innerHTML||null,
+     requests:window.__requests||[],
+     toast:document.querySelector('#toast')?.innerText||null,
+     pageErrors:window.__pageErrors||[],
+     detailButton:document.querySelector('[data-detail="ord_UAT_SAMPLE_00001"]')?.outerHTML||null
+    })""")
+    raise AssertionError('Order detail did not render after the detail action. Browser diagnostics: '+json.dumps(diagnostics,ensure_ascii=False)) from exc
+   assert pg.locator('#orderDetails .detail-panel').count()==1
    pg.locator('[data-demo-capture="ord_UAT_SAMPLE_00001"]').click()
    assert pg.locator('#actionDialog').evaluate('(el)=>el.open')
    pg.locator('#actionDialogCancel').click()
