@@ -97,7 +97,7 @@ export async function handleAdminApi({db,req,res,pathname}){
    const x=await read(req),key=id||newId('cost'),scope=text(x.scope,'Cost scope',20),condition=text(x.condition||'always','Cost condition',20),basis=text(x.basis,'Cost basis',30);
    if(!['material','kit','production','packing','shipping'].includes(scope))throw fail(400,'Choose a supported cost scope');
    if(!['always','finish','printing','rush'].includes(condition))throw fail(400,'Choose a supported cost condition');
-   if(!['sqm','piece','1000_impressions','meter','hour','flat'].includes(basis))throw fail(400,'Choose a supported cost basis');
+   if(!['sqm','piece','1000_impressions','meter','hour','kg','carton','destination','flat'].includes(basis))throw fail(400,'Choose a supported cost basis');
    const categoryId=x.categoryId?text(x.categoryId,'Category',80):null,materialId=x.materialId?text(x.materialId,'Material',40):null,optionId=x.optionId?text(x.optionId,'Option',60):null;
    if(categoryId&&!db.prepare('SELECT id FROM catalog_categories WHERE id=?').get(categoryId))throw fail(400,'Unknown category');
    if(['material','kit'].includes(scope)&&!materialId)throw fail(400,'Select the raw material or kit item for this cost');
