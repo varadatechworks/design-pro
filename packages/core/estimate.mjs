@@ -113,9 +113,11 @@ export function estimate(input,rateCard={},catalog=CATEGORIES){
  const shipping = input.shipping === false?0:sum([cartons*3500,Math.ceil(chargeableKg)*1800,(destinationCount-1)*9000]);
  const costBase=sum([rawMaterial,scrap,setup,assembly,rush,shipping]);
  const targetMarginBps=integer(activeRate.marginBps??2500,100,6500,'Margin (basis points)');
- const selling=Number((BigInt(costBase)*10000n+BigInt(10000-targetMarginBps-1))/BigInt(10000-targetMarginBps));
- if(!Number.isSafeInteger(selling))throw new Error('Amount overflow');
- const taxable=selling;
+ const sellingBeforeDiscount=Number((BigInt(costBase)*10000n+BigInt(10000-targetMarginBps-1))/BigInt(10000-targetMarginBps));
+ if(!Number.isSafeInteger(sellingBeforeDiscount))throw new Error('Amount overflow');
+ const discountBps=quantity>=(activeRate.discountMinQty??1)?integer(activeRate.discountBps??0,0,5000,'Discount basis points'):0;
+ const discountMinor=money(sellingBeforeDiscount,discountBps);
+ const taxable=sellingBeforeDiscount-discountMinor;
  const totalTax=money(taxable,integer(activeRate.gstBps??1800,0,2800,'GST basis points'));
  const gstBps=integer(activeRate.gstBps??1800,0,2800,'GST basis points');
  const stateHalf=Math.floor(gstBps/2);
@@ -130,9 +132,9 @@ export function estimate(input,rateCard={},catalog=CATEGORIES){
  if(category.kind==='laser'&&!input.cutPathMm)warnings.push('Laser route pricing requires verified path length and material safety review.');
  if(requiresReview)warnings.push('A technical reviewer must confirm material fit, production method and final price.');
  warnings.push('Indicative estimate using sample factory rates. Preview is not a production proof.');
- const breakdown=[line('materials','Material, print and contents',rawMaterial),line('spoilage','Production wastage allowance',scrap),line('setup','Prepress, tooling and setup',setup),line('assembly','Assembly and kitting',assembly),line('rush','Priority production',rush),line('shipping','Indicative freight & handling',shipping)];
+ const breakdown=[line('materials','Material, print and contents',rawMaterial),line('spoilage','Production wastage allowance',scrap),line('setup','Prepress, tooling and setup',setup),line('assembly','Assembly and kitting',assembly),line('rush','Priority production',rush),line('shipping','Indicative freight & handling',shipping)];if(discountMinor)breakdown.push(line('discount','Volume discount',-discountMinor));
  const payload={categoryId:category.id,quantity,length,width,height,material,finish,printSides,designComplexity,destinationState,rush:Boolean(input.rush),shipping:input.shipping!==false,unitsPerCarton,destinationCount,kitItems:selected,designNotes:String(input.designNotes||'').slice(0,1000)};
  const designStudio=normalizeDesignStudio(input.designStudio);if(designStudio)payload.designStudio=designStudio;
- return {config:payload,categoryName:category.name,kind:category.kind,currency:'INR',quantity,breakdown,costMinor:costBase,netMinor:taxable,taxMinor,totalMinor:sum([taxable,taxMinor]),unitInclTaxMinor:Math.round((taxable+taxMinor)/quantity),taxes,marginBps:targetMarginBps,chargeableKg,cartons,leadDays:category.days+(rush?-1:0),status:requiresReview?'technical_review':'indicative',confidence:requiresReview?'technical_review':'indicative',warnings,validUntil:new Date(Date.now()+7*86400000).toISOString()};
+ return {config:payload,categoryName:category.name,kind:category.kind,currency:'INR',quantity,breakdown,costMinor:costBase,netMinor:taxable,taxMinor,totalMinor:sum([taxable,taxMinor]),unitInclTaxMinor:Math.round((taxable+taxMinor)/quantity),taxes,marginBps:targetMarginBps,discountBps,discountMinor,chargeableKg,cartons,leadDays:category.days+(rush?-1:0),status:requiresReview?'technical_review':'indicative',confidence:requiresReview?'technical_review':'indicative',warnings,validUntil:new Date(Date.now()+7*86400000).toISOString()};
 }
 export const formatINR=minor=>new Intl.NumberFormat('en-IN',{style:'currency',currency:'INR',maximumFractionDigits:2}).format(minor/100);
