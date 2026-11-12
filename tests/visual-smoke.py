@@ -234,7 +234,9 @@ def run():
    assert pg.locator('.portal-sidebar').count()==1
    assert pg.locator('.mini-stat').count()>=4
    pg.locator('[data-tab="shipping"]').click()
-   pg.wait_for_timeout(40)
+   # Rendering the workspace tab is async: wait for the orders API response to
+   # populate the eligible-order selector instead of racing the DOM update.
+   pg.wait_for_function("() => { const select=document.querySelector('#shipmentForm select[name=orderId]'); return !!select && [...select.options].some(option=>option.value==='ord_UAT_SAMPLE_00002'); }", timeout=3000)
    assert pg.locator('#shipmentForm select[name=orderId] option').count()==1
    assert pg.locator('#shipmentDestinationSelect option').count()==1
    pg.locator('[data-tab="orders"]').click()
