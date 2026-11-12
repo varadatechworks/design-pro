@@ -4,7 +4,8 @@ const money=(value,bps)=>{if(!Number.isSafeInteger(value)||value<0||!Number.isSa
 const sum=xs=>xs.reduce((a,b)=>{const n=a+b;if(!Number.isSafeInteger(n))throw new Error('Cost overflow');return n;},0);
 
 const DESIGN_FACES=['front','back','left','right','top','bottom'];
-const DESIGN_SHAPES=['rectangular','cube','tall','flat','rounded','bottle','label-sheet','display','custom'];
+const DESIGN_SHAPES=['rectangular','cube','tall','flat','rounded','oval-box','round-box','hexagon-box','pentagon-box','bottle','label-sheet','display','custom'];
+const DESIGN_FONTS=['serif','sans','display','mono','arial','georgia','times','verdana','tahoma','trebuchet','palatino','garamond','noto-sans','noto-serif','kannada','custom'];
 function normalizeDesignStudio(value){
  if(value===undefined||value===null)return null;
  if(typeof value!=='object'||Array.isArray(value))throw new Error('Design studio settings must be an object');
@@ -32,7 +33,7 @@ function normalizeDesignStudio(value){
   const fontFamily=item.fontFamily??'serif',fontStyle=item.fontStyle??'normal',fontWeight=String(item.fontWeight??'600');
   const fontColor=item.fontColor??'#F4E6CF',sideFontSize=integer(item.fontSize??16,10,48,'Side font size');
   const sideTextAlign=item.textAlign??'center';
-  if(!['serif','sans','display','mono'].includes(fontFamily))throw new Error('Unsupported font family');
+  if(!DESIGN_FONTS.includes(fontFamily))throw new Error('Unsupported font family');
   if(!['normal','italic'].includes(fontStyle))throw new Error('Unsupported font style');
   if(!['300','400','500','600','700','800'].includes(fontWeight))throw new Error('Unsupported font weight');
   if(typeof fontColor!=='string'||!/^#[0-9a-f]{6}$/i.test(fontColor))throw new Error('Side font colour must be a six-digit hex value');
@@ -52,6 +53,25 @@ function normalizeDesignStudio(value){
   const height=percent(item.height??60,12,100-top,'Artwork height');
   artworkPositions[face]={left,top,width,height};
  }
+ const rawLayers=value.textLayers??{};
+ if(!rawLayers||typeof rawLayers!=='object'||Array.isArray(rawLayers))throw new Error('Text layers must be an object');
+ const textLayers={};
+ for(const face of DESIGN_FACES){
+  let layers=rawLayers[face];
+  if(layers===undefined)layers=faceTexts[face]?[{id:'legacy-'+face,text:faceTexts[face],position:rawPositions[face]??{left:12,top:62,width:76,height:25},...(faceTypography[face]||{})}]:[];
+  if(!Array.isArray(layers)||layers.length>8)throw new Error('Each side can contain at most 8 text layers');
+  const ids=new Set();
+  textLayers[face]=layers.map(layer=>{
+   if(!layer||typeof layer!=='object'||Array.isArray(layer))throw new Error('Invalid text layer');
+   const id=String(layer.id??'');if(!/^[a-zA-Z0-9_-]{1,48}$/.test(id)||ids.has(id))throw new Error('Text layer identifier is invalid or duplicated');ids.add(id);
+   const text=layer.text??'';if(typeof text!=='string'||text.length>120)throw new Error('Text layer content must be 120 characters or fewer');
+   const fontFamily=layer.fontFamily??'serif',fontStyle=layer.fontStyle??'normal',fontWeight=String(layer.fontWeight??'600'),fontColor=layer.fontColor??'#F4E6CF',fontSize=integer(layer.fontSize??16,10,48,'Text layer font size'),textAlign=layer.textAlign??'center';
+   if(!DESIGN_FONTS.includes(fontFamily)||!['normal','italic'].includes(fontStyle)||!['300','400','500','600','700','800'].includes(fontWeight)||!['left','center','right'].includes(textAlign)||typeof fontColor!=='string'||!/^#[0-9a-f]{6}$/i.test(fontColor))throw new Error('Text layer typography is invalid');
+   const position=layer.position??{};if(!position||typeof position!=='object'||Array.isArray(position))throw new Error('Text layer position is invalid');
+   const left=percent(position.left??12,0,88,'Text layer left position'),top=percent(position.top??62,0,90,'Text layer top position'),width=percent(position.width??76,12,100-left,'Text layer width'),height=percent(position.height??25,10,100-top,'Text layer height');
+   return {id,text:text.trim(),position:{left,top,width,height},fontFamily,fontStyle,fontWeight,fontColor:fontColor.toUpperCase(),fontSize,textAlign};
+  });
+ }
  const customShapeFileName=value.customShapeFileName??'';
  if(typeof customShapeFileName!=='string'||customShapeFileName.length>120)throw new Error('Custom shape filename is invalid');
  const sourceFiles=value.artworkFiles??{};
@@ -67,7 +87,7 @@ function normalizeDesignStudio(value){
  }
  const aiConcept=value.aiConcept??null;
  if(aiConcept!==null&&(typeof aiConcept!=='string'||aiConcept.length>120))throw new Error('AI concept name is invalid');
- return {shape,faceColors,faceTexts,fontSize,textAlign,faceTypography,artworkPositions,customShapeFileName,artworkFiles,aiConcept};
+ return {shape,faceColors,faceTexts,fontSize,textAlign,faceTypography,artworkPositions,textLayers,customShapeFileName,artworkFiles,aiConcept};
 }
 
 const line=(code,label,costMinor)=>({code,label,costMinor});
