@@ -44,13 +44,15 @@ def page_setup(browser,viewport,role):
  errors=[];page.on('pageerror',lambda error:errors.append(str(error)))
  page.set_content(HTML)
  page.add_style_tag(content=CSS)
- mock={**BASE_MOCK,'/api/v1/catalog':CATALOG,'/api/v1/auth/me':{'user':{'id':'u1','role':role,'displayName':'Aarav Patel','email':'qa@example.test'}}}
+ mock={**BASE_MOCK,'/api/v1/catalog':CATALOG,'/api/v1/site-content':{'content':{'heroTitle':'Beyond ordinary. Made for wonder.'},'pages':[]},'/api/v1/auth/me':{'user':{'id':'u1','role':role,'displayName':'Aarav Patel','email':'qa@example.test'}}}
  page.evaluate('(x)=>window.__mock=x',mock)
  page.add_script_tag(content=MOCK_SCRIPT)
  page.add_script_tag(content=SCRIPT)
  page.wait_for_timeout(230)
  assert not errors,errors
  assert page.locator('#designStudioControls').count()==1
+ assert page.locator('.hero h1 em').inner_text()=='Made for wonder.'
+ assert page.locator('.hero h1').inner_text()=='Beyond ordinary. Made for wonder.'
  assert page.locator('.delivery-options').evaluate("(el)=>el.closest('.estimate-panel')!==null")
  assert page.locator('#stateSelect').evaluate("(el)=>el.closest('.studio-controls')===null")
  assert page.locator('#shapePreset').evaluate("(el)=>el.closest('.studio-controls')!==null")
