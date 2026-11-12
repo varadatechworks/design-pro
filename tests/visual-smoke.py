@@ -236,7 +236,18 @@ def run():
    pg.locator('[data-tab="shipping"]').click()
    # Rendering the workspace tab is async: wait for the orders API response to
    # populate the eligible-order selector instead of racing the DOM update.
-   pg.wait_for_function("() => { const select=document.querySelector('#shipmentForm select[name=orderId]'); return !!select && [...select.options].some(option=>option.value==='ord_UAT_SAMPLE_00002'); }", timeout=3000)
+   try:
+    pg.wait_for_function("() => { const select=document.querySelector('#shipmentForm select[name=orderId]'); return !!select && [...select.options].some(option=>option.value==='ord_UAT_SAMPLE_00002'); }", timeout=3000)
+   except Exception as exc:
+    diagnostics=pg.evaluate("""() => ({
+     tabButtons:[...document.querySelectorAll('[data-tab]')].map(b=>({tab:b.dataset.tab,active:b.classList.contains('active')})),
+     workspaceText:document.querySelector('#workspaceData')?.innerText||null,
+     shipmentForm:!!document.querySelector('#shipmentForm'),
+     shipmentOptions:[...(document.querySelector('#shipmentForm select[name=orderId]')?.options||[])].map(o=>({value:o.value,text:o.textContent})),
+     requests:window.__requests||[],
+     pageErrors:window.__pageErrors||[]
+    })""")
+    raise AssertionError('Shipping tab failed to populate the eligible order selector. Browser diagnostics: '+json.dumps(diagnostics,ensure_ascii=False)) from exc
    assert pg.locator('#shipmentForm select[name=orderId] option').count()==1
    assert pg.locator('#shipmentDestinationSelect option').count()==1
    pg.locator('[data-tab="orders"]').click()
