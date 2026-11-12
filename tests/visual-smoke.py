@@ -60,7 +60,7 @@ def page_setup(browser,viewport,role):
  assert page.locator('#faceSelector [role=tab]').count()==6
  assert page.locator('#view360Toggle').count()==1
  assert page.locator('#rotationSlider').count()==1
- assert page.locator('#rotationValue').inner_text()=='331°'
+ assert page.locator('#rotationValue').text_content()=='331°'
  page.locator('#stateSelect').select_option('KA')
  page.locator('#destinationCountInput').fill('2')
  page.locator('#shipInput').uncheck()
@@ -178,7 +178,7 @@ def page_setup(browser,viewport,role):
  page.locator('#customShapeUpload').set_input_files(svg)
  page.wait_for_timeout(50)
  assert not page.locator('#customShapeThumb').is_hidden()
- page.locator('.left-studio-details > summary').first.click()
+ page.locator('.left-studio-details > summary').nth(1).click()
  page.locator('#artworkUpload').set_input_files(svg)
  page.wait_for_timeout(60)
  assert '200 × 150 mm' in page.locator('#artworkImportStatus').inner_text()
