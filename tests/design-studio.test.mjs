@@ -119,3 +119,21 @@ test('AI route rejects remote Ollama hosts and short briefs',async()=>{
   assert.match(remote.json.error,/localhost|this computer/i);
  });}finally{restoreEnv(saved);}
 });
+
+test('design studio normalizes independent text layers and multilingual font choices',()=>{
+ const result=estimate({categoryId:'rigid-box',quantity:12,designStudio:{
+  ...baseDesign,
+  shape:'hexagon-box',
+  textLayers:{front:[
+   {id:'headline',text:'ನಮಸ್ಕಾರ',position:{left:10,top:12,width:70,height:22},fontFamily:'kannada',fontStyle:'normal',fontWeight:'700',fontColor:'#FFFFFF',fontSize:24,textAlign:'center'},
+   {id:'subline',text:'Welcome',position:{left:12,top:55,width:76,height:18},fontFamily:'custom',fontStyle:'italic',fontWeight:'400',fontColor:'#F4E6CF',fontSize:14,textAlign:'left'}
+  ]}
+ }});
+ assert.equal(result.config.designStudio.shape,'hexagon-box');
+ assert.equal(result.config.designStudio.textLayers.front.length,2);
+ assert.equal(result.config.designStudio.textLayers.front[0].text,'ನಮಸ್ಕಾರ');
+ assert.equal(result.config.designStudio.textLayers.front[0].fontFamily,'kannada');
+ assert.equal(result.config.designStudio.textLayers.front[1].fontFamily,'custom');
+ assert.throws(()=>estimate({categoryId:'rigid-box',quantity:12,designStudio:{...baseDesign,textLayers:{front:Array.from({length:9},(_,i)=>({id:'layer-'+i,text:'x'}))}}}));
+ assert.throws(()=>estimate({categoryId:'rigid-box',quantity:12,designStudio:{...baseDesign,textLayers:{front:[{id:'bad id',text:'x'}]}}}));
+});
