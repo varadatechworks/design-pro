@@ -85,8 +85,9 @@ export function estimate(input,rateCard={},catalog=CATEGORIES){
  const printSides=integer(input.printSides??1,1,2,'Print sides');
  const designComplexity=integer(input.designComplexity??1,1,4,'Design complexity');
  const unitsPerCarton=integer(input.unitsPerCarton??25,1,500,'Units per carton');
- const baseUnit=integer(rateCard[category.id]?.baseUnitMinor??category.base,0,10000000,'Unit rate');
- const fixedSetup=integer(rateCard[category.id]?.setupMinor??category.setup,0,100000000,'Setup rate');
+ const activeRate=rateCard[category.id]||rateCard;
+ const baseUnit=integer(activeRate.baseUnitMinor??category.base,0,10000000,'Unit rate');
+ const fixedSetup=integer(activeRate.setupMinor??category.setup,0,100000000,'Setup rate');
  const areaRatio=Math.max(0.3,Math.min(14,(length*width)/(240*180)));
  const geometryMultiplierBps=Math.round(areaRatio*10000);
  const unitMaterial=money(money(baseUnit,MATERIALS[material].factorBps),geometryMultiplierBps);
@@ -111,12 +112,12 @@ export function estimate(input,rateCard={},catalog=CATEGORIES){
  if(destinationCount>quantity)throw new Error('Destination count cannot exceed order quantity');
  const shipping = input.shipping === false?0:sum([cartons*3500,Math.ceil(chargeableKg)*1800,(destinationCount-1)*9000]);
  const costBase=sum([rawMaterial,scrap,setup,assembly,rush,shipping]);
- const targetMarginBps=integer(rateCard.marginBps??2500,100,6500,'Margin (basis points)');
+ const targetMarginBps=integer(activeRate.marginBps??2500,100,6500,'Margin (basis points)');
  const selling=Number((BigInt(costBase)*10000n+BigInt(10000-targetMarginBps-1))/BigInt(10000-targetMarginBps));
  if(!Number.isSafeInteger(selling))throw new Error('Amount overflow');
  const taxable=selling;
- const totalTax=money(taxable,integer(rateCard.gstBps??1800,0,2800,'GST basis points'));
- const gstBps=integer(rateCard.gstBps??1800,0,2800,'GST basis points');
+ const totalTax=money(taxable,integer(activeRate.gstBps??1800,0,2800,'GST basis points'));
+ const gstBps=integer(activeRate.gstBps??1800,0,2800,'GST basis points');
  const stateHalf=Math.floor(gstBps/2);
  const taxes=destinationState==='KA'?[
   {component:'CGST',rateBps:stateHalf,amountMinor:money(taxable,stateHalf)},
