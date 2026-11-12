@@ -124,7 +124,7 @@ export function estimate(input,rateCard={},catalog=CATEGORIES){
  const components=Array.isArray(rateCard._components)?rateCard._components:[];
  const applicable=components.filter(c=>(!c.category_id||c.category_id===category.id)&&
   (c.scope!=='material'||c.material_id===material)&&
-  (c.condition==='always'||(c.condition==='finish'&&c.option_id===finish)||(c.condition==='printing'&&printSides>0)||(c.condition==='rush'&&Boolean(input.rush))));
+  (c.condition==='always'||(c.condition==='finish'&&c.option_id===finish)||(c.condition==='printing'&&printSides>0)||(c.condition==='rush'&&Boolean(input.rush)))&&!(c.scope==='shipping'&&input.shipping===false));
  const hasConfiguredMaterial=applicable.some(c=>c.scope==='material');
  const componentModel=hasConfiguredMaterial&&components.length>0;
  let rawMaterial=0,scrap=0,setup=0,assembly=0,rush=0,shipping=0,processing=0;
@@ -147,10 +147,10 @@ export function estimate(input,rateCard={},catalog=CATEGORIES){
    const amount=baseCost+wasteCost;
    if(!Number.isSafeInteger(amount)||amount<0)throw new Error('Production cost overflow');
    if(!amount)continue;
-   if(c.scope==='material')rawMaterial+=amount;
-   else if(c.scope==='production')processing+=amount;
-   else if(c.scope==='packing')assembly+=amount;
-   else if(c.scope==='shipping')shipping+=amount;
+   if(c.scope==='material')rawMaterial+=baseCost;
+   else if(c.scope==='production')processing+=baseCost;
+   else if(c.scope==='packing')assembly+=baseCost;
+   else if(c.scope==='shipping')shipping+=baseCost;
    scrap+=wasteCost;
    componentLines.push(line('component-'+c.id,c.label+(wasteCost?' (incl. wastage)':''),amount));
   }
