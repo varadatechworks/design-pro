@@ -114,6 +114,8 @@ def page_setup(browser,viewport,role):
  page.mouse.up()
  text_width_after=text_frame.evaluate("(el)=>el.style.width")
  assert text_width_before!=text_width_after,'Text resize handle should change the text box size'
+ text_font_after=text_frame.locator('.face-custom-text').evaluate("(el)=>el.style.fontSize")
+ assert text_font_after!='24px','Text resize handle should scale the font size as well'
  page.locator('[data-face="front"]').click()
  assert page.locator('.face.front .face-text-frame').count()==0,'Text must remain isolated to its own side'
  page.locator('[data-face="back"]').click()
