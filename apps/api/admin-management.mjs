@@ -9,7 +9,7 @@ const text=(v,label,max=180,required=true)=>{if(typeof v!=='string'||(required&&
 const int=(v,label,min=0,max=100000000)=>{if(!Number.isSafeInteger(v)||v<min||v>max)throw fail(400,label+' must be an integer between '+min+' and '+max);return v;};
 const slug=v=>text(v,'Slug',80).toLowerCase().replace(/[^a-z0-9-]/g,'-').replace(/-+/g,'-').replace(/^-|-$/g,'');
 const list=(v,allowed,label)=>{if(!Array.isArray(v)||!v.length||v.some(x=>typeof x!=='string'||!allowed.includes(x)))throw fail(400,'Choose valid '+label);return [...new Set(v)];};
-const categoryRow=r=>({...r,materials:JSON.parse(r.materials),finishes:JSON.parse(r.finishes),active:!!r.active});
+const categoryRow=r=>({...r,base:r.base_minor,setup:r.setup_minor,days:r.lead_days,baseMinor:r.base_minor,setupMinor:r.setup_minor,leadDays:r.lead_days,materials:JSON.parse(r.materials),finishes:JSON.parse(r.finishes),active:!!r.active});
 function seed(db){
  const n=now(),ins=db.prepare('INSERT OR IGNORE INTO catalog_categories (id,name,tag,icon,base_minor,setup_minor,lead_days,materials,finishes,kind,active,sort_order,updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)');
  for(let i=0;i<CATEGORIES.length;i++){const c=CATEGORIES[i];ins.run(c.id,c.name,c.tag,c.icon,c.base,c.setup,c.days,JSON.stringify(c.materials),JSON.stringify(c.finishes),c.kind,1,i,n);}
