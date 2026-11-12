@@ -187,10 +187,18 @@ export function estimate(input,rateCard={},catalog=CATEGORIES){
   {component:'SGST',rateBps:gstBps-stateHalf,amountMinor:totalTax-money(taxable,stateHalf)}
  ]:[{component:'IGST',rateBps:gstBps,amountMinor:totalTax}];
  const taxMinor=sum(taxes.map(t=>t.amountMinor));
- const requiresReview = category.kind==='rfq'||length>600||width>600||height>500||quantity>20000||Boolean(input.customerSuppliedMaterial)|| (category.kind==='laser'&&!input.cutPathMm)|| Boolean(input.customDie);
+ const missingCostScopes=componentModel?[
+  ...(!applicable.some(c=>c.scope==='production')?['production operation']:[]),
+  ...(printSides>0&&!applicable.some(c=>c.condition==='printing')?['printing']:[]),
+  ...(finish!=='none'&&!applicable.some(c=>c.condition==='finish'&&c.option_id===finish)?['selected finish']:[]),
+  ...(input.shipping!==false&&!applicable.some(c=>c.scope==='shipping')?['shipping']:[]),
+  ...(category.kind==='kit'&&Object.values(selected).some(Boolean)&&!applicable.some(c=>c.scope==='kit')?['kit item']:[])
+ ]:[];
+ const requiresReview = category.kind==='rfq'||length>600||width>600||height>500||quantity>20000||Boolean(input.customerSuppliedMaterial)|| (category.kind==='laser'&&!input.cutPathMm)|| Boolean(input.customDie)||missingCostScopes.length>0;
  const warnings=[];
  if(category.kind==='rfq')warnings.push('Custom engineering requires an expert quotation.');
  if(category.kind==='laser'&&!input.cutPathMm)warnings.push('Laser route pricing requires verified path length and material safety review.');
+ if(missingCostScopes.length)warnings.push('Admin cost configuration is incomplete for: '+missingCostScopes.join(', ')+'. The estimate is provisional until these rates are configured and reviewed.');
  if(requiresReview)warnings.push('A technical reviewer must confirm material fit, production method and final price.');
  if(componentModel)warnings.push('Calculated using the active Admin production cost components. Confirm the technical dieline and factory routing before accepting a firm order.');else warnings.push('Indicative estimate uses sample fallback factory rates because no active raw-material cost is configured for the selected material.');
  const breakdown=componentModel?[...componentLines,...(setup?[line('setup','Category setup charge',setup)]:[]),...(itemCost?[line('kit-items','Selected kit contents',itemCost*quantity)]:[])]:[line('materials','Material, print and contents',rawMaterial),line('spoilage','Production wastage allowance',scrap),line('setup','Prepress, tooling and setup',setup),line('assembly','Assembly and kitting',assembly),line('rush','Priority production',rush),line('shipping','Indicative freight & handling',shipping)];if(!componentModel&&processing)breakdown.push(line('processing','Production operations',processing));if(discountMinor)breakdown.push(line('discount','Volume discount',-discountMinor));
