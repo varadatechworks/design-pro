@@ -79,7 +79,7 @@ def page_setup(browser,viewport,role):
  assert page.locator('.product-cube').get_attribute('data-shape')=='display'
  page.locator('#productSelect').select_option('welcome-kit')
  assert page.locator('.product-cube').get_attribute('data-shape')=='rectangular'
- page.locator('[data-face="back"]').click()
+ page.locator('#faceTab-back').click()
  page.locator('#faceColorInput').fill('#234567')
  assert page.locator('.product-cube').evaluate("(el)=>el.style.getPropertyValue('--face-back')")=='#234567'
  page.locator('#faceTextInput').fill('Made for you')
@@ -116,12 +116,12 @@ def page_setup(browser,viewport,role):
  assert text_width_before!=text_width_after,'Text resize handle should change the text box size'
  text_font_after=text_frame.locator('.face-custom-text').evaluate("(el)=>el.style.fontSize")
  assert text_font_after!='24px','Text resize handle should scale the font size as well'
- page.locator('[data-face="front"]').click()
+ page.locator('#faceTab-front').click()
  assert page.locator('.face.front .face-text-frame').count()==0,'Text must remain isolated to its own side'
- page.locator('[data-face="back"]').click()
+ page.locator('#faceTab-back').click()
  assert page.locator('.face.back .face-text-frame').count()==1,'Text position should persist when switching sides'
- page.locator('[data-face="front"]').click()
- page.locator('[data-face="back"]').click()
+ page.locator('#faceTab-front').click()
+ page.locator('#faceTab-back').click()
  assert page.locator('#faceFontFamily').input_value()=='sans'
  assert page.locator('#faceFontSize').input_value()=='24'
  page.locator('#shapePreset').select_option('cube')
@@ -142,7 +142,7 @@ def page_setup(browser,viewport,role):
  page.wait_for_timeout(60)
  assert '200 × 150 mm' in page.locator('#artworkImportStatus').inner_text()
  assert page.locator('.face.back .face-artwork-frame').count()==1
- page.locator('[data-face="front"]').click()
+ page.locator('#faceTab-front').click()
  page.locator('#faceImageUpload').set_input_files(svg)
  page.wait_for_timeout(60)
  frame=page.locator('.face.front .face-artwork-frame')
