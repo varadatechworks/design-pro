@@ -124,7 +124,7 @@ def page_setup(browser,viewport,role):
  page.locator('#faceTab-front').click()
  page.locator('#faceTab-back').click()
  assert page.locator('#faceFontFamily').input_value()=='sans'
- assert page.locator('#faceFontSize').input_value()=='24'
+ assert int(page.locator('#faceFontSize').input_value())==int(float(text_font_after.replace('px','')))
  page.locator('#shapePreset').select_option('cube')
  assert page.locator('.product-cube').get_attribute('data-shape')=='cube'
  page.locator('#rotationSlider').fill('120')
