@@ -1,4 +1,4 @@
-import {getCategory,MATERIALS,FINISHES,KIT_ITEMS} from './catalog.mjs';
+import {getCategory,CATEGORIES,MATERIALS,FINISHES,KIT_ITEMS} from './catalog.mjs';
 const integer=(v,min,max,label)=>{const x=typeof v==='number'?v:Number(v);if(v===null||v===true||v===false||typeof v==='object'||v===''||!Number.isSafeInteger(x)||x<min||x>max)throw new Error(`${label} must be between ${min} and ${max}`);return x;};
 const money=(value,bps)=>{if(!Number.isSafeInteger(value)||value<0||!Number.isSafeInteger(bps)||bps<0)throw new Error('Invalid money');const x=(BigInt(value)*BigInt(bps)+5000n)/10000n;if(x>BigInt(Number.MAX_SAFE_INTEGER))throw new Error('Cost overflow');return Number(x);};
 const sum=xs=>xs.reduce((a,b)=>{const n=a+b;if(!Number.isSafeInteger(n))throw new Error('Cost overflow');return n;},0);
@@ -71,9 +71,9 @@ function normalizeDesignStudio(value){
 }
 
 const line=(code,label,costMinor)=>({code,label,costMinor});
-export function estimate(input,rateCard={}){
+export function estimate(input,rateCard={},catalog=CATEGORIES){
  if(!input||typeof input!=='object')throw new Error('Configuration is required');
- const category=getCategory(input.categoryId);if(!category)throw new Error('Unknown category');
+ const category=catalog.find(item=>item.id===input.categoryId)||getCategory(input.categoryId);if(!category)throw new Error('Unknown category');
  const quantity=integer(input.quantity,1,100000,'Quantity');
  const length=integer(input.length??240,20,2000,'Length (mm)');
  const width=integer(input.width??180,20,2000,'Width (mm)');
