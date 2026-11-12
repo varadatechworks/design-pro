@@ -110,7 +110,7 @@ function serveManagedMedia(db,res,id){
  const asset=db.prepare('SELECT data_url,mime_type FROM media_assets WHERE id=?').get(id);
  if(!asset?.data_url)return false;
  const data=Buffer.from(asset.data_url.split(',')[1],'base64');
- res.writeHead(200,{'Content-Type':asset.mime_type,'Content-Length':data.length,'Cache-Control':'public, max-age=86400','X-Content-Type-Options':'nosniff','Content-Security-Policy':"default-src 'none'; img-src 'self'; sandbox'});
+ res.writeHead(200,{'Content-Type':asset.mime_type,'Content-Length':data.length,'Cache-Control':'public, max-age=86400','X-Content-Type-Options':'nosniff','Content-Security-Policy':"default-src 'none'; img-src 'self'; sandbox"});
  res.end(data);return true;
 }
 function serveCmsPage(db,res,slug){
