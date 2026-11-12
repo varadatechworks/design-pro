@@ -32,7 +32,7 @@ BASE_MOCK={
 }
 
 MOCK_SCRIPT=r'''window.__requests=[];
-window.fetch=async(u,opts={})=>{const path=String(u),method=opts.method||'GET';window.__requests.push({path,method,body:opts.body||null});
+window.fetch=async(u,opts={})=>{const requestUrl=String(u),path=requestUrl.split('?')[0],method=opts.method||'GET';window.__requests.push({path:requestUrl,method,body:opts.body||null});
  if(path.endsWith('/estimate'))return {ok:true,status:200,json:async()=>({quantity:20,totalMinor:160000,unitInclTaxMinor:8000,netMinor:130000,costMinor:110000,taxMinor:30000,status:'indicative',breakdown:[{label:'Production',costMinor:110000}],warnings:['Illustrative pricing, not a firm quote.'],leadDays:7})};
  if(method!=='GET')return {ok:true,status:200,json:async()=>({message:'UAT request accepted',id:'mock_action'})};
  const data=window.__mock[path];const success=!!data&&!data.error;
