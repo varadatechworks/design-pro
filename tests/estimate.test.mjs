@@ -43,3 +43,20 @@ test('configured material wastage and shipping opt-out are applied once',()=>{
  assert.ok(mat.costMinor>0);
  assert.equal(q.breakdown.reduce((sum,x)=>sum+x.costMinor,0),q.costMinor-q.discountMinor);
 });
+
+test('selected kit item costs use admin-managed kit component rates',()=>{
+ const components=[
+  {id:'board',code:'premium',label:'Premium board',scope:'material',material_id:'premium',condition:'always',basis:'sqm',rate_minor:25000,factor_milli:1000,waste_bps:500},
+  {id:'bottle',code:'bottle',label:'Bottle',scope:'kit',material_id:'bottle',condition:'always',basis:'piece',rate_minor:30000,factor_milli:1000,waste_bps:0},
+  {id:'diary',code:'diary',label:'Diary',scope:'kit',material_id:'diary',condition:'always',basis:'piece',rate_minor:15000,factor_milli:1000,waste_bps:0},
+  {id:'cut',code:'cutting',label:'Cutting',scope:'production',condition:'always',basis:'meter',rate_minor:1000,factor_milli:1000,waste_bps:0},
+  {id:'print',code:'printing',label:'Printing',scope:'production',condition:'printing',basis:'1000_impressions',rate_minor:2000,factor_milli:1000,waste_bps:0},
+  {id:'finish',code:'matte',label:'Matte lamination',scope:'production',condition:'finish',option_id:'softtouch',basis:'sqm',rate_minor:4000,factor_milli:1000,waste_bps:0},
+  {id:'freight',code:'freight',label:'Freight',scope:'shipping',condition:'always',basis:'flat',rate_minor:1000,factor_milli:1000,waste_bps:0}
+ ];
+ const q=estimate({...base,categoryId:'welcome-kit',quantity:4,material:'premium',finish:'softtouch',kitItems:{bottle:true,diary:true,pen:false,id:false,card:false}},{_components:components});
+ assert.ok(q.breakdown.some(x=>x.code==='component-bottle'&&x.costMinor===120000));
+ assert.ok(q.breakdown.some(x=>x.code==='component-diary'&&x.costMinor===60000));
+ assert.equal(q.breakdown.some(x=>x.code==='kit-items'),false);
+ assert.equal(q.status,'indicative');
+});
