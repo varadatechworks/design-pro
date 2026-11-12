@@ -93,8 +93,10 @@ def page_setup(browser,viewport,role):
  assert page.locator('.face.back .face-custom-text').evaluate("(el)=>el.style.fontStyle")=='italic'
  assert page.locator('.face.back .face-custom-text').evaluate("(el)=>el.style.fontWeight")=='800'
  assert page.locator('.face.back .face-custom-text').evaluate("(el)=>el.style.color")=='rgb(255, 255, 255)'
+ page.locator('#productCube').evaluate("el=>el.style.transform='rotateX(0deg) rotateY(180deg)'")
  text_frame=page.locator('.face.back .face-text-frame')
  assert text_frame.count()==1,'Side text should be rendered as a selectable canvas object'
+ text_frame.scroll_into_view_if_needed()
  text_before=text_frame.evaluate("(el)=>el.style.left")
  text_bounds=text_frame.bounding_box()
  page.mouse.move(text_bounds['x']+text_bounds['width']/2,text_bounds['y']+text_bounds['height']/2)
