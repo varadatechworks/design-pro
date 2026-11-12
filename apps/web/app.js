@@ -509,7 +509,7 @@ function initStudioEnhancements(){
  });
  cube.addEventListener('pointerdown',function(event){
   const frame=event.target.closest('.face-text-frame');if(!frame)return;
-  const face=frame.dataset.face,position=textPositionFor(face),faceNode=frame.parentElement;
+  const face=frame.dataset.face,faceNode=frame.parentElement;
   const layer=textLayersFor(face).find(item=>item.id===frame.dataset.layerId);if(!layer)return;const position=layer.position||(layer.position=textPositionFor(face));
   textGesture={face,layerId:layer.id,frame,pointerId:event.pointerId,mode:event.target.closest('.face-text-resize')?'resize':'move',startX:event.clientX,startY:event.clientY,faceWidth:Math.max(1,faceNode.clientWidth),faceHeight:Math.max(1,faceNode.clientHeight),start:{left:position.left,top:position.top,width:position.width,height:position.height,fontSize:layer.fontSize||16}};
   try{frame.setPointerCapture(event.pointerId);}catch{}
