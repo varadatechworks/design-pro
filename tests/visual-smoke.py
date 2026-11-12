@@ -137,6 +137,25 @@ def page_setup(browser,viewport,role):
  assert text_width_before!=text_width_after,'Text resize handle should change the text box size'
  text_font_after=text_frame.locator('.face-custom-text').evaluate("(el)=>el.style.fontSize")
  assert text_font_after!='24px','Text resize handle should scale the font size as well'
+ # Multiple independent text objects can coexist on the same side.
+ page.locator('#addTextLayer').click()
+ assert page.locator('.face.back .face-text-frame').count()==2
+ assert page.locator('#textLayerList .text-layer-item').count()==2
+ page.locator('#faceTextInput').fill('Second independent line')
+ assert page.locator('.face.back .face-text-frame .face-custom-text').count()==2
+ page.locator('#deleteTextLayer').click()
+ assert page.locator('.face.back .face-text-frame').count()==1
+ # Grid is a preview-only overlay and can be toggled without affecting the model.
+ page.locator('#previewGridToggle').uncheck()
+ assert not page.locator('#productCube').evaluate("(el)=>el.classList.contains('grid-visible')")
+ page.locator('#previewGridToggle').check()
+ assert page.locator('#productCube').evaluate("(el)=>el.classList.contains('grid-visible')")
+ # Additional packaging shape presets are selectable.
+ page.locator('#shapePreset').select_option('hexagon-box')
+ assert page.locator('#productCube').get_attribute('data-shape')=='hexagon-box'
+ page.locator('#shapePreset').select_option('pentagon-box')
+ assert page.locator('#productCube').get_attribute('data-shape')=='pentagon-box'
+ page.locator('#shapePreset').select_option('cube')
  page.locator('#faceTab-front').click()
  assert page.locator('.face.front .face-text-frame').count()==0,'Text must remain isolated to its own side'
  page.locator('#faceTab-back').click()
