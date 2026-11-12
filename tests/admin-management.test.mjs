@@ -29,6 +29,12 @@ test('admin CMS, catalogue, product, media and effective-dated pricing managemen
   assert.equal(invalidCost.code,400);
   const costEstimate=await request(base,'/api/v1/estimate',{method:'POST',body:{categoryId:'test-box',quantity:10,material:'greyboard',finish:'matte'}});
   assert.equal(costEstimate.code,200);const costList=await request(base,'/api/v1/admin/management/cost-components');const greyboardRecord=costList.body.components.find(c=>c.code==='greyboard-sheet');assert.ok(greyboardRecord);assert.ok(costEstimate.body.breakdown.some(x=>x.code==='component-'+greyboardRecord.id));
+  createUser(db,{email:'buyer@designpro.test',displayName:'Buyer',password:'Strong Buyer Password 123!',role:'CUSTOMER',verified:true});
+  const buyerLogin=await request(base,'/api/v1/auth/login',{method:'POST',body:{email:'buyer@designpro.test',password:'Strong Buyer Password 123!'}});
+  assert.equal(buyerLogin.code,200);
+  const savedQuote=await request(base,'/api/v1/quotes',{method:'POST',cookie:buyerLogin.cookie,csrf:buyerLogin.body.csrf,body:{categoryId:'test-box',quantity:10,material:'greyboard',finish:'matte'}});
+  assert.equal(savedQuote.code,201);assert.ok(savedQuote.body.breakdown.some(x=>x.code==='component-'+greyboardRecord.id),'Saved quote must use the same active cost model as the preview estimate');
+
   const estimate=await request(base,'/api/v1/estimate',{method:'POST',body:{categoryId:'test-box',quantity:10,material:'greyboard',finish:'matte'}});
   assert.equal(estimate.code,200);assert.ok(estimate.body.breakdown.some(x=>x.code==='setup'&&x.costMinor===25000));assert.equal(estimate.body.marginBps,2500);assert.equal(estimate.body.taxes[0].rateBps,900);assert.equal(estimate.body.discountBps,500);assert.ok(estimate.body.discountMinor>0);assert.ok(estimate.body.breakdown.some(x=>x.code==='discount'&&x.costMinor<0));
   const content=await request(base,'/api/v1/admin/management/content',{method:'PUT',cookie,csrf,body:{content:{heroDescription:'Updated storefront message',announcement:'New launch'}}});
