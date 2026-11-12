@@ -233,6 +233,11 @@ def run():
    pg,errors=page_setup(browser,{'width':width,'height':900},'SUPER_ADMIN')
    assert pg.locator('.portal-sidebar').count()==1
    assert pg.locator('.mini-stat').count()>=4
+   pg.evaluate("""() => {
+    window.__tabClickProbe={capture:0,bubble:0};
+    document.addEventListener('click',()=>window.__tabClickProbe.capture++,true);
+    document.addEventListener('click',()=>window.__tabClickProbe.bubble++);
+   }""")
    pg.locator('[data-tab="shipping"]').click()
    # Rendering the workspace tab is async: wait for the orders API response to
    # populate the eligible-order selector instead of racing the DOM update.
@@ -245,7 +250,9 @@ def run():
      shipmentForm:!!document.querySelector('#shipmentForm'),
      shipmentOptions:[...(document.querySelector('#shipmentForm select[name=orderId]')?.options||[])].map(o=>({value:o.value,text:o.textContent})),
      requests:window.__requests||[],
-     pageErrors:window.__pageErrors||[]
+     pageErrors:window.__pageErrors||[],
+     clickProbe:window.__tabClickProbe||null,
+     shippingButton:(()=>{const b=document.querySelector('.workspace-tabs [data-tab="shipping"]');if(!b)return null;const r=b.getBoundingClientRect();return {text:b.innerText,disabled:b.disabled,rect:{x:r.x,y:r.y,width:r.width,height:r.height},hit:document.elementFromPoint(r.x+r.width/2,r.y+r.height/2)?.outerHTML?.slice(0,240)}})()
     })""")
     raise AssertionError('Shipping tab failed to populate the eligible order selector. Browser diagnostics: '+json.dumps(diagnostics,ensure_ascii=False)) from exc
    assert pg.locator('#shipmentForm select[name=orderId] option').count()==1
