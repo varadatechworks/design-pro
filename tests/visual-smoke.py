@@ -32,7 +32,7 @@ BASE_MOCK={
 }
 
 MOCK_SCRIPT=r'''window.__requests=[];
-window.fetch=async(u,opts={})=>{const path=String(u),method=opts.method||'GET';window.__requests.push({path,method,body:opts.body||null});
+window.fetch=async(u,opts={})=>{const requestUrl=String(u),path=requestUrl.split('?')[0],method=opts.method||'GET';window.__requests.push({path:requestUrl,method,body:opts.body||null});
  if(path.endsWith('/estimate'))return {ok:true,status:200,json:async()=>({quantity:20,totalMinor:160000,unitInclTaxMinor:8000,netMinor:130000,costMinor:110000,taxMinor:30000,status:'indicative',breakdown:[{label:'Production',costMinor:110000}],warnings:['Illustrative pricing, not a firm quote.'],leadDays:7})};
  if(method!=='GET')return {ok:true,status:200,json:async()=>({message:'UAT request accepted',id:'mock_action'})};
  const data=window.__mock[path];const success=!!data&&!data.error;
@@ -233,14 +233,66 @@ def run():
    pg,errors=page_setup(browser,{'width':width,'height':900},'SUPER_ADMIN')
    assert pg.locator('.portal-sidebar').count()==1
    assert pg.locator('.mini-stat').count()>=4
+   pg.evaluate("""() => {
+    window.__tabClickProbe={capture:0,bubble:0};
+    document.addEventListener('click',()=>window.__tabClickProbe.capture++,true);
+    document.addEventListener('click',()=>window.__tabClickProbe.bubble++);
+   }""")
    pg.locator('[data-tab="shipping"]').click()
-   pg.wait_for_timeout(40)
+   # Rendering the workspace tab is async: wait for the orders API response to
+   # populate the eligible-order selector instead of racing the DOM update.
+   try:
+    pg.wait_for_function("() => { const select=document.querySelector('#shipmentForm select[name=orderId]'); return !!select && [...select.options].some(option=>option.value==='ord_UAT_SAMPLE_00002'); }", timeout=3000)
+   except Exception as exc:
+    diagnostics=pg.evaluate("""() => ({
+     tabButtons:[...document.querySelectorAll('[data-tab]')].map(b=>({tab:b.dataset.tab,active:b.classList.contains('active')})),
+     workspaceText:document.querySelector('#workspaceData')?.innerText||null,
+     shipmentForm:!!document.querySelector('#shipmentForm'),
+     shipmentOptions:[...(document.querySelector('#shipmentForm select[name=orderId]')?.options||[])].map(o=>({value:o.value,text:o.textContent})),
+     requests:window.__requests||[],
+     pageErrors:window.__pageErrors||[],
+     clickProbe:window.__tabClickProbe||null,
+     shippingButton:(()=>{const b=document.querySelector('.workspace-tabs [data-tab="shipping"]');if(!b)return null;const r=b.getBoundingClientRect();return {text:b.innerText,disabled:b.disabled,rect:{x:r.x,y:r.y,width:r.width,height:r.height},hit:document.elementFromPoint(r.x+r.width/2,r.y+r.height/2)?.outerHTML?.slice(0,240)}})()
+    })""")
+    raise AssertionError('Shipping tab failed to populate the eligible order selector. Browser diagnostics: '+json.dumps(diagnostics,ensure_ascii=False)) from exc
    assert pg.locator('#shipmentForm select[name=orderId] option').count()==1
    assert pg.locator('#shipmentDestinationSelect option').count()==1
    pg.locator('[data-tab="orders"]').click()
-   pg.locator('[data-detail="ord_UAT_SAMPLE_00001"]').click()
-   pg.wait_for_timeout(40)
-   assert pg.locator('.detail-panel').count()==1
+   # Switching tabs must immediately remove the previous tab's interactive DOM.
+   # Wait for the Orders page to finish rendering before selecting its order row.
+   try:
+    pg.wait_for_function("""() => {
+     const title=document.querySelector('#portalPageTitle');
+     const detailButton=document.querySelector('#workspaceData [data-detail="ord_UAT_SAMPLE_00001"]');
+     return title?.textContent==='Order operations' && !!detailButton &&
+       !document.querySelector('#workspaceData #shipmentForm');
+    }""",timeout=5000)
+   except Exception as exc:
+    diagnostics=pg.evaluate("""() => ({
+     pageTitle:document.querySelector('#portalPageTitle')?.textContent||null,
+     workspaceText:document.querySelector('#workspaceData')?.innerText||null,
+     orderButton:document.querySelector('#workspaceData [data-detail="ord_UAT_SAMPLE_00001"]')?.outerHTML||null,
+     shipmentForm:!!document.querySelector('#workspaceData #shipmentForm'),
+     requests:window.__requests||[],
+     pageErrors:window.__pageErrors||[]
+    })""")
+    raise AssertionError('Orders tab did not finish rendering before order selection. Browser diagnostics: '+json.dumps(diagnostics,ensure_ascii=False)) from exc
+   pg.locator('#workspaceData [data-detail="ord_UAT_SAMPLE_00001"]').click()
+   try:
+    pg.wait_for_function("""() => {
+     const panel=document.querySelector('#orderDetails .detail-panel');
+     return !!panel && panel.textContent.includes('Production & delivery journey');
+    }""",timeout=5000)
+   except Exception as exc:
+    diagnostics=pg.evaluate("""() => ({
+     detailHost:document.querySelector('#orderDetails')?.innerHTML||null,
+     requests:window.__requests||[],
+     toast:document.querySelector('#toast')?.innerText||null,
+     pageErrors:window.__pageErrors||[],
+     detailButton:document.querySelector('[data-detail="ord_UAT_SAMPLE_00001"]')?.outerHTML||null
+    })""")
+    raise AssertionError('Order detail did not render after the detail action. Browser diagnostics: '+json.dumps(diagnostics,ensure_ascii=False)) from exc
+   assert pg.locator('#orderDetails .detail-panel').count()==1
    pg.locator('[data-demo-capture="ord_UAT_SAMPLE_00001"]').click()
    assert pg.locator('#actionDialog').evaluate('(el)=>el.open')
    pg.locator('#actionDialogCancel').click()
