@@ -128,7 +128,7 @@ export function estimate(input,rateCard={},catalog=CATEGORIES){
  const hasConfiguredMaterial=applicable.some(c=>c.scope==='material');
  if(applicable.some(c=>c.scope==='kit'))itemCost=Object.entries(selected).reduce((acc,[id,on])=>acc+(on&&!applicable.some(c=>c.scope==='kit'&&c.material_id===id)?KIT_ITEMS[id].costMinor:0),0);
  const componentModel=hasConfiguredMaterial&&components.length>0;
- let rawMaterial=0,scrap=0,setup=0,assembly=0,rush=0,shipping=0,processing=0;
+ let rawMaterial=0,scrap=0,setup=0,assembly=0,rush=0,shipping=0,processing=0,overhead=0;
  const componentLines=[];
  if(componentModel){
   const surfaceAreaM2=2*(length*width+length*height+width*height)/1_000_000;
@@ -155,6 +155,7 @@ export function estimate(input,rateCard={},catalog=CATEGORIES){
    else if(c.scope==='production'&&c.code==='setup')setup+=baseCost;
    else if(c.scope==='production')processing+=baseCost;
    else if(c.scope==='packing'||c.scope==='kit')assembly+=baseCost;
+   else if(c.scope==='overhead')overhead+=baseCost;
    else if(c.scope==='shipping')shipping+=baseCost;
    scrap+=wasteCost;
    componentLines.push(line('component-'+c.id,c.label+(wasteCost?' (incl. wastage)':''),amount));
@@ -176,7 +177,7 @@ export function estimate(input,rateCard={},catalog=CATEGORIES){
   rush=Boolean(input.rush)?money(sum([rawMaterial,scrap,setup,assembly]),2000):0;
   shipping=input.shipping===false?0:sum([cartons*3500,Math.ceil(chargeableKg)*1800,(destinationCount-1)*9000]);
  }
- const costBase=sum([rawMaterial,processing,scrap,setup,assembly,rush,shipping]);
+ const costBase=sum([rawMaterial,processing,scrap,setup,assembly,overhead,rush,shipping]);
  const targetMarginBps=integer(activeRate.marginBps??2500,100,6500,'Margin (basis points)');
  const sellingBeforeDiscount=Number((BigInt(costBase)*10000n+BigInt(10000-targetMarginBps-1))/BigInt(10000-targetMarginBps));
  if(!Number.isSafeInteger(sellingBeforeDiscount))throw new Error('Amount overflow');
