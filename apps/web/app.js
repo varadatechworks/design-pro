@@ -532,7 +532,7 @@ function initStudioEnhancements(){
  cube.addEventListener('pointerdown',function(event){
   const frame=event.target.closest('.face-text-frame');if(!frame)return;
   const face=frame.dataset.face,position=textPositionFor(face),faceNode=frame.parentElement;
-  textGesture={face,frame,pointerId:event.pointerId,mode:event.target.closest('.face-text-resize')?'resize':'move',startX:event.clientX,startY:event.clientY,faceWidth:Math.max(1,faceNode.clientWidth),faceHeight:Math.max(1,faceNode.clientHeight),start:{left:position.left,top:position.top,width:position.width,height:position.height}};
+  textGesture={face,frame,pointerId:event.pointerId,mode:event.target.closest('.face-text-resize')?'resize':'move',startX:event.clientX,startY:event.clientY,faceWidth:Math.max(1,faceNode.clientWidth),faceHeight:Math.max(1,faceNode.clientHeight),start:{left:position.left,top:position.top,width:position.width,height:position.height,fontSize:typographyFor(face).fontSize||16}};
   try{frame.setPointerCapture(event.pointerId);}catch{}
   event.preventDefault();event.stopPropagation();
  });
@@ -558,6 +558,10 @@ function initStudioEnhancements(){
   if(gesture.mode==='resize'){
    position.width=clampPercent(gesture.start.width+dx,18,100-gesture.start.left);
    position.height=clampPercent(gesture.start.height+dy,10,100-gesture.start.top);
+   const fontSize=Math.max(10,Math.min(48,gesture.start.fontSize+dy*.45));
+   typographyFor(gesture.face).fontSize=Math.round(fontSize);
+   const textNode=gesture.frame.querySelector('.face-custom-text');if(textNode)textNode.style.fontSize=Math.round(fontSize)+'px';
+   if(studio.selectedFace===gesture.face)sizeInput.value=String(Math.round(fontSize));
   }else{
    position.left=clampPercent(gesture.start.left+dx,0,100-gesture.start.width);
    position.top=clampPercent(gesture.start.top+dy,0,100-gesture.start.height);
