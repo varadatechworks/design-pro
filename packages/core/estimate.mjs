@@ -141,6 +141,9 @@ export function estimate(input,rateCard={},catalog=CATEGORIES){
    else if(basis==='1000_impressions')units=quantity*printSides/1000;
    else if(basis==='meter')units=cutLengthM*quantity;
    else if(basis==='hour')units=quantity*(c.factor_milli??1000)/1000;
+   else if(basis==='kg')units=chargeableKg;
+   else if(basis==='carton')units=cartons;
+   else if(basis==='destination')units=destinationCount;
    else if(basis==='flat')units=1;
    const factor=(basis==='hour'?1:(c.factor_milli??1000)/1000);
    const baseCost=Math.round(units*factor*c.rate_minor);
@@ -149,13 +152,14 @@ export function estimate(input,rateCard={},catalog=CATEGORIES){
    if(!Number.isSafeInteger(amount)||amount<0)throw new Error('Production cost overflow');
    if(!amount)continue;
    if(c.scope==='material')rawMaterial+=baseCost;
+   else if(c.scope==='production'&&c.code==='setup')setup+=baseCost;
    else if(c.scope==='production')processing+=baseCost;
    else if(c.scope==='packing'||c.scope==='kit')assembly+=baseCost;
    else if(c.scope==='shipping')shipping+=baseCost;
    scrap+=wasteCost;
    componentLines.push(line('component-'+c.id,c.label+(wasteCost?' (incl. wastage)':''),amount));
   }
-  setup=fixedSetup;
+  setup=applicable.some(c=>c.scope==='production'&&c.code==='setup')?0:fixedSetup;
   if(itemCost)assembly+=itemCost*quantity;
   if(input.shipping===false)shipping=0;
   if(input.rush&&!applicable.some(c=>c.condition==='rush'))rush=money(sum([rawMaterial,processing,setup,assembly,scrap]),2000);
