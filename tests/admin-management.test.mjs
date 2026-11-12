@@ -20,7 +20,7 @@ test('admin CMS, catalogue, product, media and effective-dated pricing managemen
   const rate=await request(base,'/api/v1/admin/management/rates',{method:'POST',cookie,csrf,body:{categoryId:'test-box',baseUnitMinor:15000,setupMinor:25000,marginBps:2500,gstBps:1800,effectiveFrom:new Date().toISOString().slice(0,10)}});
   assert.equal(rate.code,200);
   const estimate=await request(base,'/api/v1/estimate',{method:'POST',body:{categoryId:'test-box',quantity:10,material:'greyboard',finish:'matte'}});
-  assert.equal(estimate.code,200);assert.ok(estimate.body.breakdown.some(x=>x.code==='setup'&&x.costMinor===25000));
+  assert.equal(estimate.code,200);assert.ok(estimate.body.breakdown.some(x=>x.code==='setup'&&x.costMinor===25000));assert.equal(estimate.body.marginBps,2500);assert.equal(estimate.body.taxes[0].rateBps,900);
   const content=await request(base,'/api/v1/admin/management/content',{method:'PUT',cookie,csrf,body:{content:{heroDescription:'Updated storefront message',announcement:'New launch'}}});
   assert.equal(content.code,200);
   const publicContent=await request(base,'/api/v1/site-content');assert.equal(publicContent.body.content.heroDescription,'Updated storefront message');
