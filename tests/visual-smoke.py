@@ -146,7 +146,9 @@ def page_setup(browser,viewport,role):
  page.locator('#deleteTextLayer').click()
  assert page.locator('.face.back .face-text-frame').count()==1
  # Grid is a preview-only overlay and can be toggled without affecting the model.
- page.locator('.left-studio-details > summary').last.click()
+ assert page.locator('#studioPreviewControls').count()==1
+ assert page.locator('#studioPreviewControls').evaluate("el=>el.closest('.studio-center')!==null"),'Preview controls must live in the middle pane'
+ page.locator('#studioPreviewControls > summary').click()
  page.locator('#previewGridToggle').uncheck()
  assert not page.locator('#productCube').evaluate("(el)=>el.classList.contains('grid-visible')")
  page.locator('#previewGridToggle').check()
