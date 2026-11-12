@@ -100,8 +100,11 @@ export async function handleAdminApi({db,req,res,pathname}){
   if(req.method==='DELETE'){db.prepare('DELETE FROM cms_pages WHERE id=?').run(id);audit(db,actor.id,'cms.page.deleted','cms_page',id);return send(res,200,{id});}
  }
  if(resource==='media'){
-  if(req.method==='GET')return send(res,200,{assets:rows(db,'SELECT * FROM media_assets ORDER BY created_at DESC')});
-  if(req.method==='POST'){const x=await read(req),url=text(x.url,'Media URL',1000);if(!/^https:\/\//i.test(url))throw fail(400,'Media URL must use HTTPS');const key=newId('med');db.prepare('INSERT INTO media_assets VALUES (?,?,?,?,?,?)').run(key,text(x.name,'Asset name',120),url,text(x.altText||'','Alt text',240,false),actor.id,now());audit(db,actor.id,'media.asset.created','media',key);return send(res,201,{id:key});}
+  if(req.method==='GET')return send(res,200,{assets:rows(db,'SELECT id,name,url,alt_text,created_by,created_at,mime_type,size_bytes FROM media_assets ORDER BY created_at DESC')});
+  if(req.method==='POST'){const x=await read(req,3000000),name=text(x.name,'Asset name',120),alt=text(x.altText||'','Alt text',240,false);let url=text(x.url||'','Media URL',1000,false),dataUrl=null,mime=null,size=0;
+   if(x.dataUrl){const m=String(x.dataUrl).match(/^data:(image\/(?:png|jpeg|webp));base64,([A-Za-z0-9+/=]+)$/);if(!m)throw fail(400,'Upload a PNG, JPEG or WebP image');mime=m[1];const bin=Buffer.from(m[2],'base64');if(!bin.length||bin.length>2*1024*1024||bin.toString('base64')!==m[2])throw fail(413,'Image must be valid and smaller than 2 MB');dataUrl=x.dataUrl;size=bin.length;}
+   else if(!/^https:\/\//i.test(url))throw fail(400,'Provide an HTTPS image URL or upload an image');
+   const key=newId('med');if(dataUrl)url='/api/v1/media/'+key;db.prepare('INSERT INTO media_assets(id,name,url,alt_text,created_by,created_at,data_url,mime_type,size_bytes) VALUES (?,?,?,?,?,?,?,?,?)').run(key,name,url,alt,actor.id,now(),dataUrl,mime,size);audit(db,actor.id,'media.asset.created','media',key,{sizeBytes:size,mimeType:mime});return send(res,201,{id:key,url});}
   if(req.method==='DELETE'){db.prepare('DELETE FROM media_assets WHERE id=?').run(id);audit(db,actor.id,'media.asset.deleted','media',id);return send(res,200,{id});}
  }
  if(resource==='settings'){
