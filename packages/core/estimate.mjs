@@ -159,7 +159,7 @@ export function estimate(input,rateCard={},catalog=CATEGORIES){
    scrap+=wasteCost;
    componentLines.push(line('component-'+c.id,c.label+(wasteCost?' (incl. wastage)':''),amount));
   }
-  setup=applicable.some(c=>c.scope==='production'&&c.code==='setup')?0:fixedSetup;
+  if(!applicable.some(c=>c.scope==='production'&&c.code==='setup'))setup=fixedSetup;
   if(itemCost)assembly+=itemCost*quantity;
   if(input.shipping===false)shipping=0;
   if(input.rush&&!applicable.some(c=>c.condition==='rush'))rush=money(sum([rawMaterial,processing,setup,assembly,scrap]),2000);
