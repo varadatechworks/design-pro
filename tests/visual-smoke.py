@@ -56,7 +56,7 @@ def page_setup(browser,viewport,role):
  assert page.locator('.delivery-options').evaluate("(el)=>el.closest('.estimate-panel')!==null")
  assert page.locator('#stateSelect').evaluate("(el)=>el.closest('.studio-controls')===null")
  assert page.locator('#shapePreset').evaluate("(el)=>el.closest('.studio-controls')!==null")
- assert page.locator('#faceSelector').evaluate("(el)=>el.closest('.studio-center')!==null")
+ assert page.locator('#faceSelector').evaluate("(el)=>el.closest('.studio-controls')!==null")
  assert page.locator('#faceSelector [role=tab]').count()==6
  assert page.locator('#view360Toggle').count()==1
  assert page.locator('#rotationSlider').count()==1
