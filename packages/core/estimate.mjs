@@ -113,7 +113,7 @@ export function estimate(input,rateCard={},catalog=CATEGORIES){
  const selected=input.kitItems??{};
  if(!selected||typeof selected!=='object'||Array.isArray(selected))throw new Error('Kit contents must be an object');
  for(const [id,enabled] of Object.entries(selected)){if(!Object.hasOwn(KIT_ITEMS,id)||typeof enabled!=='boolean')throw new Error('Invalid kit content selection');}
- const itemCost=category.kind==='kit'?Object.entries(selected).reduce((acc,[id,on])=>acc+(on?KIT_ITEMS[id].costMinor:0),0):0;
+ let itemCost=category.kind==='kit'?Object.entries(selected).reduce((acc,[id,on])=>acc+(on?KIT_ITEMS[id].costMinor:0),0):0;
  const destinationState=String(input.destinationState||'KA').toUpperCase();
  if(!/^[A-Z]{2}$/.test(destinationState))throw new Error('Invalid destination state code');
  const cartons=Math.ceil(quantity/unitsPerCarton);
@@ -123,9 +123,10 @@ export function estimate(input,rateCard={},catalog=CATEGORIES){
  if(destinationCount>quantity)throw new Error('Destination count cannot exceed order quantity');
  const components=Array.isArray(rateCard._components)?rateCard._components:[];
  const applicable=components.filter(c=>(!c.category_id||c.category_id===category.id)&&
-  (c.scope!=='material'||c.material_id===material)&&
+  (c.scope!=='material'||c.material_id===material)&&(c.scope!=='kit'||selected[c.material_id]===true)&&
   (c.condition==='always'||(c.condition==='finish'&&c.option_id===finish)||(c.condition==='printing'&&printSides>0)||(c.condition==='rush'&&Boolean(input.rush)))&&!(c.scope==='shipping'&&input.shipping===false));
  const hasConfiguredMaterial=applicable.some(c=>c.scope==='material');
+ if(applicable.some(c=>c.scope==='kit'))itemCost=0;
  const componentModel=hasConfiguredMaterial&&components.length>0;
  let rawMaterial=0,scrap=0,setup=0,assembly=0,rush=0,shipping=0,processing=0;
  const componentLines=[];
@@ -149,7 +150,7 @@ export function estimate(input,rateCard={},catalog=CATEGORIES){
    if(!amount)continue;
    if(c.scope==='material')rawMaterial+=baseCost;
    else if(c.scope==='production')processing+=baseCost;
-   else if(c.scope==='packing')assembly+=baseCost;
+   else if(c.scope==='packing'||c.scope==='kit')assembly+=baseCost;
    else if(c.scope==='shipping')shipping+=baseCost;
    scrap+=wasteCost;
    componentLines.push(line('component-'+c.id,c.label+(wasteCost?' (incl. wastage)':''),amount));
