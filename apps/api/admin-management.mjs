@@ -21,10 +21,10 @@ export function migrateAdmin(db){
  db.exec(`
  CREATE TABLE IF NOT EXISTS catalog_categories(id TEXT PRIMARY KEY,name TEXT NOT NULL,tag TEXT NOT NULL DEFAULT '',icon TEXT NOT NULL DEFAULT 'box',base_minor INTEGER NOT NULL DEFAULT 0,setup_minor INTEGER NOT NULL DEFAULT 0,lead_days INTEGER NOT NULL DEFAULT 0,materials TEXT NOT NULL,finishes TEXT NOT NULL,kind TEXT NOT NULL,active INTEGER NOT NULL DEFAULT 1,sort_order INTEGER NOT NULL DEFAULT 0,updated_at TEXT NOT NULL);
  CREATE TABLE IF NOT EXISTS catalog_products(id TEXT PRIMARY KEY,category_id TEXT NOT NULL REFERENCES catalog_categories(id),name TEXT NOT NULL,slug TEXT NOT NULL UNIQUE,description TEXT NOT NULL DEFAULT '',sku TEXT NOT NULL DEFAULT '',image_url TEXT NOT NULL DEFAULT '',specifications TEXT NOT NULL DEFAULT '{}',active INTEGER NOT NULL DEFAULT 1,sort_order INTEGER NOT NULL DEFAULT 0,created_at TEXT NOT NULL,updated_at TEXT NOT NULL);
- CREATE TABLE IF NOT EXISTS pricing_rate_cards(id TEXT PRIMARY KEY,category_id TEXT NOT NULL UNIQUE REFERENCES catalog_categories(id),base_unit_minor INTEGER NOT NULL,setup_minor INTEGER NOT NULL,margin_bps INTEGER NOT NULL DEFAULT 2500,gst_bps INTEGER NOT NULL DEFAULT 1800,effective_from TEXT NOT NULL,active INTEGER NOT NULL DEFAULT 1,updated_by TEXT NOT NULL,updated_at TEXT NOT NULL);
+ CREATE TABLE IF NOT EXISTS pricing_rate_cards(id TEXT PRIMARY KEY,category_id TEXT NOT NULL REFERENCES catalog_categories(id),base_unit_minor INTEGER NOT NULL,setup_minor INTEGER NOT NULL,margin_bps INTEGER NOT NULL DEFAULT 2500,gst_bps INTEGER NOT NULL DEFAULT 1800,effective_from TEXT NOT NULL,active INTEGER NOT NULL DEFAULT 1,updated_by TEXT NOT NULL,updated_at TEXT NOT NULL,UNIQUE(category_id,effective_from));
  CREATE TABLE IF NOT EXISTS cms_pages(id TEXT PRIMARY KEY,slug TEXT NOT NULL UNIQUE,title TEXT NOT NULL,body TEXT NOT NULL,meta_title TEXT NOT NULL DEFAULT '',meta_description TEXT NOT NULL DEFAULT '',published INTEGER NOT NULL DEFAULT 0,updated_by TEXT NOT NULL,updated_at TEXT NOT NULL);
  CREATE TABLE IF NOT EXISTS site_content(content_key TEXT PRIMARY KEY,value TEXT NOT NULL,updated_at TEXT NOT NULL);
- CREATE TABLE IF NOT EXISTS media_assets(id TEXT PRIMARY KEY,name TEXT NOT NULL,url TEXT NOT NULL,alt_text TEXT NOT NULL DEFAULT '',created_by TEXT NOT NULL,created_at TEXT NOT NULL);
+ CREATE TABLE IF NOT EXISTS media_assets(id TEXT PRIMARY KEY,name TEXT NOT NULL,url TEXT NOT NULL,alt_text TEXT NOT NULL DEFAULT '',created_by TEXT NOT NULL,created_at TEXT NOT NULL,data_url TEXT,mime_type TEXT,size_bytes INTEGER NOT NULL DEFAULT 0);
  CREATE INDEX IF NOT EXISTS idx_products_category ON catalog_products(category_id,active,sort_order);
  CREATE INDEX IF NOT EXISTS idx_pages_published ON cms_pages(published,slug);
  `);
@@ -35,7 +35,7 @@ export function publicCatalog(db){
  const products=rows(db,'SELECT id,category_id,name,slug,description,sku,image_url,specifications FROM catalog_products WHERE active=1 ORDER BY sort_order,name').map(p=>({...p,specifications:JSON.parse(p.specifications)}));
  return {categories,products,materials:MATERIALS,finishes:FINISHES,kitItems:KIT_ITEMS};
 }
-export function getRateCard(db){const out={};for(const r of rows(db,'SELECT * FROM pricing_rate_cards WHERE active=1'))out[r.category_id]={baseUnitMinor:r.base_unit_minor,setupMinor:r.setup_minor,marginBps:r.margin_bps,gstBps:r.gst_bps};return out;}
+export function getRateCard(db){const out={};for(const r of rows(db,'SELECT p.* FROM pricing_rate_cards p JOIN (SELECT category_id,MAX(effective_from) effective_from FROM pricing_rate_cards WHERE active=1 AND effective_from<=? GROUP BY category_id) latest ON latest.category_id=p.category_id AND latest.effective_from=p.effective_from',now()))out[r.category_id]={baseUnitMinor:r.base_unit_minor,setupMinor:r.setup_minor,marginBps:r.margin_bps,gstBps:r.gst_bps};return out;}
 export async function handleAdminApi({db,req,res,pathname}){
  if(pathname==='/api/v1/site-content'&&req.method==='GET'){
   return send(res,200,{content:Object.fromEntries(rows(db,'SELECT content_key,value FROM site_content').map(x=>[x.content_key,x.value])),pages:rows(db,'SELECT slug,title,body,meta_title,meta_description FROM cms_pages WHERE published=1 ORDER BY title')});
@@ -45,7 +45,7 @@ export async function handleAdminApi({db,req,res,pathname}){
  if(!pathname.startsWith(root))return false;
  const actor=requireActor(db,req,'catalog','view',{csrf:req.method!=='GET'});
  const parts=pathname.slice(root.length).split('/').filter(Boolean),resource=parts[0]||'overview',id=parts[1];
- const grants={categories:'catalog',products:'catalog',pages:'settings',content:'settings',rates:'pricing',media:'catalog',settings:'settings'};
+ const grants={overview:'reports',categories:'catalog',products:'catalog',pages:'settings',content:'settings',rates:'pricing',media:'catalog',settings:'settings'};
  const permission=grants[resource];if(!permission)throw fail(404,'Management resource not found');
  const action=req.method==='GET'?'view':req.method==='POST'?'create':req.method==='DELETE'?'delete':'edit';
  const allowedActor=requireActor(db,req,permission,action,{csrf:req.method!=='GET'});
@@ -80,8 +80,9 @@ export async function handleAdminApi({db,req,res,pathname}){
   if(req.method==='POST'||req.method==='PUT'){
    const x=await read(req),category=text(x.categoryId,'Category',80);if(!db.prepare('SELECT id FROM catalog_categories WHERE id=? AND active=1').get(category))throw fail(400,'Choose an active category');
    const base=int(x.baseUnitMinor,'Unit rate'),setup=int(x.setupMinor,'Setup rate'),margin=int(x.marginBps,'Margin',100,6500),gst=int(x.gstBps,'GST',0,2800),effective=text(x.effectiveFrom||now(),'Effective date',40);
-   const existing=db.prepare('SELECT id FROM pricing_rate_cards WHERE category_id=?').get(category),key=existing?.id||newId('rate');
-   db.prepare('INSERT INTO pricing_rate_cards(id,category_id,base_unit_minor,setup_minor,margin_bps,gst_bps,effective_from,active,updated_by,updated_at) VALUES (?,?,?,?,?,?,?,?,?,?) ON CONFLICT(category_id) DO UPDATE SET base_unit_minor=excluded.base_unit_minor,setup_minor=excluded.setup_minor,margin_bps=excluded.margin_bps,gst_bps=excluded.gst_bps,effective_from=excluded.effective_from,active=excluded.active,updated_by=excluded.updated_by,updated_at=excluded.updated_at').run(key,category,base,setup,margin,gst,effective,1,actor.id,now());
+   const existing=db.prepare('SELECT id FROM pricing_rate_cards WHERE category_id=? AND effective_from=?').get(category,effective),key=existing?.id||newId('rate');
+   if(existing)db.prepare('UPDATE pricing_rate_cards SET base_unit_minor=?,setup_minor=?,margin_bps=?,gst_bps=?,active=1,updated_by=?,updated_at=? WHERE id=?').run(base,setup,margin,gst,actor.id,now(),key);
+   else db.prepare('INSERT INTO pricing_rate_cards(id,category_id,base_unit_minor,setup_minor,margin_bps,gst_bps,effective_from,active,updated_by,updated_at) VALUES (?,?,?,?,?,?,?,?,?,?)').run(key,category,base,setup,margin,gst,effective,1,actor.id,now());
    audit(db,actor.id,'pricing.rate_card.updated','pricing',category,{baseUnitMinor:base,setupMinor:setup,marginBps:margin,gstBps:gst,effectiveFrom:effective});return send(res,200,{id:key});
   }
  }
