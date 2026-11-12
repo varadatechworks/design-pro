@@ -35,7 +35,7 @@ async function costs(){
  formField('Finish ID (only for finish-specific costs)','optionId','','text')+
  selectField('Rate basis','basis',basisOptions,'sqm')+
  formField('Rate (₹ per basis unit)','rate','0','number',false,'min="0" step="0.01" required')+
- formField('Consumption factor','factor','1','number',false,'min="0" step="0.001" value="1"')+
+ formField('Consumption factor','factor','1','number',false,'min="0" step="0.001" required')+
  formField('Wastage (%)','waste','0','number',false,'min="0" max="50" step="0.01"')+
  formField('Effective from','effectiveFrom',new Date().toISOString().slice(0,10),'date')+
  '</div><div class="form-actions"><button class="primary">Save production cost</button></div><p class="hint">For example: board at ₹___ / m² with 8% wastage; cutting at ₹___ / running metre; printing at ₹___ / 1,000 impressions; packing at ₹___ / piece. Use a finish ID such as <code>matte</code> or <code>foil</code> for finish-specific charges.</p></form></div>'+
