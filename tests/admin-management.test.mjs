@@ -20,6 +20,15 @@ test('admin CMS, catalogue, product, media and effective-dated pricing managemen
   assert.equal(product.code,201);
   const rate=await request(base,'/api/v1/admin/management/rates',{method:'POST',cookie,csrf,body:{categoryId:'test-box',baseUnitMinor:15000,setupMinor:25000,marginBps:2500,gstBps:1800,discountBps:500,discountMinQty:5,effectiveFrom:new Date().toISOString().slice(0,10)}});
   assert.equal(rate.code,200);
+  assert.equal((await request(base,'/api/v1/admin/management/cost-components')).code,401);
+  const materialCost=await request(base,'/api/v1/admin/management/cost-components',{method:'POST',cookie,csrf,body:{code:'greyboard-sheet',label:'Greyboard sheet',scope:'material',categoryId:'test-box',materialId:'greyboard',condition:'always',basis:'sqm',rateMinor:50000,factorMilli:1000,wasteBps:800,effectiveFrom:new Date().toISOString().slice(0,10)}});
+  assert.equal(materialCost.code,201);
+  const cuttingCost=await request(base,'/api/v1/admin/management/cost-components',{method:'POST',cookie,csrf,body:{code:'die-cutting',label:'Die cutting',scope:'production',categoryId:'test-box',condition:'always',basis:'meter',rateMinor:1200,factorMilli:1000,wasteBps:0,effectiveFrom:new Date().toISOString().slice(0,10)}});
+  assert.equal(cuttingCost.code,201);
+  const invalidCost=await request(base,'/api/v1/admin/management/cost-components',{method:'POST',cookie,csrf,body:{code:'bad',label:'Invalid',scope:'material',materialId:'greyboard',condition:'always',basis:'unknown',rateMinor:100,effectiveFrom:new Date().toISOString().slice(0,10)}});
+  assert.equal(invalidCost.code,400);
+  const costEstimate=await request(base,'/api/v1/estimate',{method:'POST',body:{categoryId:'test-box',quantity:10,material:'greyboard',finish:'matte'}});
+  assert.equal(costEstimate.code,200);assert.ok(costEstimate.body.breakdown.some(x=>x.code==='component-'+(await request(base,'/api/v1/admin/management/cost-components')).body.components.find(c=>c.code==='greyboard-sheet').id));
   const estimate=await request(base,'/api/v1/estimate',{method:'POST',body:{categoryId:'test-box',quantity:10,material:'greyboard',finish:'matte'}});
   assert.equal(estimate.code,200);assert.ok(estimate.body.breakdown.some(x=>x.code==='setup'&&x.costMinor===25000));assert.equal(estimate.body.marginBps,2500);assert.equal(estimate.body.taxes[0].rateBps,900);assert.equal(estimate.body.discountBps,500);assert.ok(estimate.body.discountMinor>0);assert.ok(estimate.body.breakdown.some(x=>x.code==='discount'&&x.costMinor<0));
   const content=await request(base,'/api/v1/admin/management/content',{method:'PUT',cookie,csrf,body:{content:{heroDescription:'Updated storefront message',announcement:'New launch'}}});
