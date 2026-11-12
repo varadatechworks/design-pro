@@ -2,7 +2,7 @@ const $=id=>document.getElementById(id);
 const INR=v=>new Intl.NumberFormat('en-IN',{style:'currency',currency:'INR',maximumFractionDigits:2}).format((Number(v)||0)/100);
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const el=(tag,cls='',html='')=>{const e=document.createElement(tag);if(cls)e.className=cls;e.innerHTML=html;return e;};
-const state={catalog:null,category:'welcome-kit',filter:'all',estimate:null,user:null,csrf:null,authSubmitting:false,authReturnFocus:null,authMode:'login',workspaceTab:'quotes',boxColor:'#373327',rotation:{x:-22,y:-29},refreshTimer:null,uatEnabled:false,paymentsEnabled:false,aiProvider:'disabled',designStudio:{shape:'rectangular',selectedFace:'front',faceColors:{front:'#373327',back:'#373327',left:'#373327',right:'#373327',top:'#373327',bottom:'#373327'},faceTexts:{front:'',back:'',left:'',right:'',top:'',bottom:''},fontSize:16,textAlign:'center',faceTypography:{front:{fontFamily:'serif',fontStyle:'normal',fontColor:'#F4E6CF',fontWeight:'600',fontSize:16,textAlign:'center'},back:{fontFamily:'serif',fontStyle:'normal',fontColor:'#F4E6CF',fontWeight:'600',fontSize:16,textAlign:'center'},left:{fontFamily:'serif',fontStyle:'normal',fontColor:'#F4E6CF',fontWeight:'600',fontSize:16,textAlign:'center'},right:{fontFamily:'serif',fontStyle:'normal',fontColor:'#F4E6CF',fontWeight:'600',fontSize:16,textAlign:'center'},top:{fontFamily:'serif',fontStyle:'normal',fontColor:'#F4E6CF',fontWeight:'600',fontSize:16,textAlign:'center'},bottom:{fontFamily:'serif',fontStyle:'normal',fontColor:'#F4E6CF',fontWeight:'600',fontSize:16,textAlign:'center'}},artworkPositions:{front:{left:20,top:18,width:60,height:60},back:{left:20,top:18,width:60,height:60},left:{left:20,top:18,width:60,height:60},right:{left:20,top:18,width:60,height:60},top:{left:20,top:18,width:60,height:60},bottom:{left:20,top:18,width:60,height:60}},textPositions:{front:{left:12,top:62,width:76,height:25},back:{left:12,top:62,width:76,height:25},left:{left:12,top:62,width:76,height:25},right:{left:12,top:62,width:76,height:25},top:{left:12,top:62,width:76,height:25},bottom:{left:12,top:62,width:76,height:25}},customShapeFileName:'',artworkFiles:{},aiConcept:null},workspaceInitialized:false};
+const state={catalog:null,category:'welcome-kit',filter:'all',estimate:null,user:null,csrf:null,authSubmitting:false,authReturnFocus:null,authMode:'login',workspaceTab:'quotes',boxColor:'#373327',rotation:{x:-22,y:-29},refreshTimer:null,uatEnabled:false,paymentsEnabled:false,aiProvider:'disabled',designStudio:{shape:'rectangular',selectedFace:'front',faceColors:{front:'#373327',back:'#373327',left:'#373327',right:'#373327',top:'#373327',bottom:'#373327'},faceTexts:{front:'',back:'',left:'',right:'',top:'',bottom:''},textLayers:{},selectedTextLayerIds:{},fontSize:16,textAlign:'center',faceTypography:{front:{fontFamily:'serif',fontStyle:'normal',fontColor:'#F4E6CF',fontWeight:'600',fontSize:16,textAlign:'center'},back:{fontFamily:'serif',fontStyle:'normal',fontColor:'#F4E6CF',fontWeight:'600',fontSize:16,textAlign:'center'},left:{fontFamily:'serif',fontStyle:'normal',fontColor:'#F4E6CF',fontWeight:'600',fontSize:16,textAlign:'center'},right:{fontFamily:'serif',fontStyle:'normal',fontColor:'#F4E6CF',fontWeight:'600',fontSize:16,textAlign:'center'},top:{fontFamily:'serif',fontStyle:'normal',fontColor:'#F4E6CF',fontWeight:'600',fontSize:16,textAlign:'center'},bottom:{fontFamily:'serif',fontStyle:'normal',fontColor:'#F4E6CF',fontWeight:'600',fontSize:16,textAlign:'center'}},artworkPositions:{front:{left:20,top:18,width:60,height:60},back:{left:20,top:18,width:60,height:60},left:{left:20,top:18,width:60,height:60},right:{left:20,top:18,width:60,height:60},top:{left:20,top:18,width:60,height:60},bottom:{left:20,top:18,width:60,height:60}},textPositions:{front:{left:12,top:62,width:76,height:25},back:{left:12,top:62,width:76,height:25},left:{left:12,top:62,width:76,height:25},right:{left:12,top:62,width:76,height:25},top:{left:12,top:62,width:76,height:25},bottom:{left:12,top:62,width:76,height:25}},customShapeFileName:'',artworkFiles:{},aiConcept:null},workspaceInitialized:false};
 let toastTimer;
 const notify=(message,error=false)=>{const t=$('toast');t.replaceChildren();const label=document.createElement('span');label.textContent=message;const dismiss=document.createElement('button');dismiss.type='button';dismiss.className='toast-dismiss';dismiss.textContent='×';dismiss.setAttribute('aria-label','Dismiss notification');dismiss.addEventListener('click',()=>{t.hidden=true;clearTimeout(toastTimer)});t.append(label,dismiss);t.className='toast-v2 '+(error?'toast-error':'toast-success');t.setAttribute('role',error?'alert':'status');t.setAttribute('aria-live',error?'assertive':'polite');t.hidden=false;clearTimeout(toastTimer);toastTimer=setTimeout(()=>t.hidden=true,8000)};
 async function api(path,options={}){const cfg={credentials:'same-origin',headers:{'Content-Type':'application/json',...(state.csrf?{'X-CSRF-Token':state.csrf}:{})},...options};if(cfg.body&&typeof cfg.body!=='string')cfg.body=JSON.stringify(cfg.body);let response;try{response=await fetch('/api/v1'+path,cfg)}catch{throw new Error('Cannot connect to DesignPro. Check your connection and try again.')}let data;try{data=await response.json()}catch{throw new Error('The service returned an unreadable response. Try again.')}if(!response.ok){const msg=data.error||`Request failed (${response.status})`;if(response.status===401&&state.user){state.user=null;state.csrf=null;updateAccount();notify('Your session has expired. Please sign in again.',true);loadWorkspace();}throw new Error(msg+(data.requestId?` · Reference ${data.requestId}`:''))}return data;}
@@ -240,9 +240,9 @@ function initStudioEnhancements(){
      '<label class="designer-label" for="faceColorInput">Side background colour<input id="faceColorInput" class="face-color-input" type="color" value="#373327"></label>'+
      '<label class="designer-label" for="faceFontColor">Text colour<input id="faceFontColor" class="face-color-input" type="color" value="#F4E6CF"></label>'+
     '</div>'+
-    '<label class="designer-label" for="faceTextInput">Text on this side</label><textarea id="faceTextInput" class="field" rows="2" maxlength="120" placeholder="Add a message for this side"></textarea><p class="designer-help">Enter your text, then drag its box on the preview. Use the corner handle to resize it.</p>'+
+    '<div class="text-layer-toolbar"><strong>Text layers</strong><div><button type="button" class="designer-link" id="addTextLayer">＋ Add</button><button type="button" class="designer-link" id="duplicateTextLayer">Duplicate</button><button type="button" class="designer-link" id="deleteTextLayer">Delete</button></div></div><div id="textLayerList" class="text-layer-list" aria-label="Text layers on this side"></div><label class="designer-label" for="faceTextInput">Selected text</label><textarea id="faceTextInput" class="field" rows="2" maxlength="120" placeholder="Add a message to this side"></textarea><p class="designer-help">Each text layer can be moved and resized independently on the live preview.</p>'+
     '<div class="face-typography-grid">'+
-     '<label class="designer-label" for="faceFontFamily">Font family<select id="faceFontFamily" class="field"><option value="serif">Elegant serif</option><option value="sans">Modern sans</option><option value="display">Bold display</option><option value="mono">Monospace</option></select></label>'+
+     '<label class="designer-label" for="faceFontFamily">Font family<select id="faceFontFamily" class="field"><option value="serif">Elegant serif</option><option value="sans">Modern sans</option><option value="display">Bold display</option><option value="mono">Monospace</option><option value="arial">Arial</option><option value="georgia">Georgia</option><option value="times">Times New Roman</option><option value="verdana">Verdana</option><option value="tahoma">Tahoma</option><option value="trebuchet">Trebuchet MS</option><option value="palatino">Palatino</option><option value="garamond">Garamond</option><option value="noto-sans">Noto Sans (multilingual)</option><option value="noto-serif">Noto Serif (multilingual)</option><option value="kannada">Kannada / Devanagari</option><option value="custom">Uploaded font</option></select></label>'+
      '<label class="designer-label" for="faceFontStyle">Font style<select id="faceFontStyle" class="field"><option value="normal">Regular</option><option value="italic">Italic</option></select></label>'+
      '<label class="designer-label" for="faceFontWeight">Font weight<select id="faceFontWeight" class="field"><option value="300">Light</option><option value="400">Regular</option><option value="500">Medium</option><option value="600">Semibold</option><option value="700">Bold</option><option value="800">Extra bold</option></select></label>'+
      '<label class="designer-label" for="faceFontSize">Font size (px)<input id="faceFontSize" class="field" type="number" min="10" max="48" value="16"></label>'+
@@ -259,10 +259,11 @@ function initStudioEnhancements(){
  leftTools.className='left-studio-tools';
  leftTools.innerHTML=
   '<section class="designer-card left-shape-card"><div class="designer-card-title"><span>05</span><h4>Shape & form</h4></div>'+
-   '<label class="designer-label" for="shapePreset">Product shape</label><select id="shapePreset" class="field"><option value="rectangular">Rectangular box</option><option value="cube">Cube</option><option value="tall">Tall box</option><option value="flat">Flat print panel</option><option value="rounded">Rounded-edge box</option><option value="bottle">Bottle / cylinder</option><option value="label-sheet">Label sheet</option><option value="display">Display stand</option><option value="custom">Custom SVG profile</option></select>'+
+   '<label class="designer-label" for="shapePreset">Product shape</label><select id="shapePreset" class="field"><option value="rectangular">Rectangular box</option><option value="cube">Cube</option><option value="tall">Tall box</option><option value="flat">Flat print panel</option><option value="rounded">Rounded-edge box</option><option value="oval-box">Oval box</option><option value="round-box">Round box</option><option value="hexagon-box">Hexagon box</option><option value="pentagon-box">Pentagon box</option><option value="bottle">Bottle / cylinder</option><option value="label-sheet">Label sheet</option><option value="display">Display stand</option><option value="custom">Custom SVG profile</option></select>'+
    '<label class="designer-label" for="customShapeUpload">Upload custom shape outline (SVG)</label><input id="customShapeUpload" class="designer-file" type="file" accept=".svg,image/svg+xml">'+
    '<div class="shape-import-preview"><img id="customShapeThumb" alt="Uploaded custom shape outline" hidden><p id="shapeImportStatus" role="status">SVG outline supported for a local concept overlay. Other CAD formats need conversion.</p></div>'+
    '<p class="designer-help">Custom SVG is a 2D reference, not an automatically engineered 3D mesh. Dimensions remain the pricing dimensions.</p></section>'+
+  '<details class="left-studio-details"><summary>Typography & multilingual fonts <span>＋</span></summary><section class="designer-card"><label class="designer-label" for="customFontUpload">Upload font (TTF, OTF, WOFF or WOFF2)</label><input id="customFontUpload" class="designer-file" type="file" accept=".ttf,.otf,.woff,.woff2,font/ttf,font/otf,font/woff,font/woff2"><p id="customFontStatus" class="designer-help" role="status">Custom fonts are loaded locally for this browser session. Unicode fonts can support Kannada, Hindi and other scripts. Font files are not uploaded or embedded in saved quotes.</p></section></details>'+
   '<details class="left-studio-details"><summary>Import an existing design file <span>＋</span></summary><section class="designer-card designer-import-card">'+
    '<p>Inspect an existing file and suggest its page dimensions and readable text where supported.</p>'+
    '<div class="import-format-list"><span>CDR</span><span>AI</span><span>EPS</span><span>PDF</span><span>SVG</span><span>PNG</span><span>JPG</span><span>WEBP</span></div>'+
@@ -278,14 +279,13 @@ function initStudioEnhancements(){
    '</section></details>';
  const controls=document.querySelector('.studio-controls');
  const moreOptions=controls.querySelector('.more-options');
- controls.insertBefore(leftTools,moreOptions);
- const previewTools=document.querySelector('.preview-tools');
- previewTools.insertAdjacentElement('afterend',panel);
+ controls.insertBefore(leftTools,moreOptions);leftTools.prepend(panel);
+ const previewTools=document.querySelector('.preview-tools');const viewButtons=document.querySelector('.view-buttons');const viewMarkup=viewButtons?viewButtons.outerHTML.replace('class="view-buttons"','class="view-buttons left-view-buttons"'):'';
+ leftTools.insertAdjacentHTML('beforeend','<details class="left-studio-details"><summary>Preview & alignment <span>＋</span></summary><section class="designer-card"><div class="left-preview-controls">'+viewMarkup+'<button type="button" id="view360Toggle" aria-pressed="false">360° view</button><label class="rotation-control" for="rotationSlider">Rotate <input id="rotationSlider" type="range" min="0" max="360" step="1" value="331"><output id="rotationValue">331°</output></label></div><label class="grid-toggle"><input type="checkbox" id="previewGridToggle" checked> Show alignment grid</label><p class="designer-help">Grid is a visual alignment aid and is excluded from saved design artwork.</p></section></details>');
+ previewTools?.remove();document.querySelector('.preview-toolbar')?.remove();document.querySelector('.preview-badge')?.remove();document.querySelector('.preview-note')?.remove();
  const swatches=document.querySelector('.swatches');
  if(swatches)swatches.remove();
- const viewButtons=document.querySelector('.view-buttons');
- if(viewButtons&&!$('view360Toggle'))viewButtons.insertAdjacentHTML('beforeend','<button type="button" id="view360Toggle" aria-pressed="false">360° view</button>');
- if(previewTools&&!$('rotationSlider'))previewTools.insertAdjacentHTML('beforeend','<label class="rotation-control" for="rotationSlider">Rotate <input id="rotationSlider" type="range" min="0" max="360" step="1" value="331"><output id="rotationValue">331°</output></label>');
+
  const studio=state.designStudio;
  const colourInput=$('faceColorInput'),fontColorInput=$('faceFontColor'),textInput=$('faceTextInput'),fontFamilyInput=$('faceFontFamily'),fontStyleInput=$('faceFontStyle'),fontWeightInput=$('faceFontWeight'),sizeInput=$('faceFontSize'),alignInput=$('faceTextAlign');
  function safeSvg(raw){
@@ -332,52 +332,16 @@ function initStudioEnhancements(){
   if(!studio.textPositions[face])studio.textPositions[face]=Object.assign({},defaults);
   return studio.textPositions[face];
  }
+ function textLayersFor(face){if(!studio.textLayers)studio.textLayers={};if(!Array.isArray(studio.textLayers[face])){const legacy=String(studio.faceTexts?.[face]||'');const pos=textPositionFor(face),typ=typographyFor(face);studio.textLayers[face]=legacy?[{id:'legacy-'+face,text:legacy,position:{...pos},...typ}]:[];}return studio.textLayers[face];}
+ function selectedTextLayer(face){const layers=textLayersFor(face);let layer=layers.find(item=>item.id===studio.selectedTextLayerIds?.[face]);if(!layer&&layers.length){layer=layers[0];studio.selectedTextLayerIds={...(studio.selectedTextLayerIds||{}),[face]:layer.id};}return layer||null;}
+ function renderTextLayerList(){const list=$('textLayerList');if(!list)return;list.replaceChildren();const layers=textLayersFor(studio.selectedFace),selected=selectedTextLayer(studio.selectedFace);layers.forEach((layer,index)=>{const button=document.createElement('button');button.type='button';button.className='text-layer-item'+(selected?.id===layer.id?' active':'');button.dataset.textLayerId=layer.id;button.textContent=(index+1)+'. '+(layer.text||'Empty text layer').slice(0,24);button.setAttribute('aria-pressed',String(selected?.id===layer.id));list.append(button);});$('addTextLayer').disabled=layers.length>=8;$('duplicateTextLayer').disabled=!selected||layers.length>=8;$('deleteTextLayer').disabled=!selected;}
+ function syncTextLayerEditor(){const layer=selectedTextLayer(studio.selectedFace);textInput.value=layer?.text||'';fontFamilyInput.value=layer?.fontFamily||'serif';fontStyleInput.value=layer?.fontStyle||'normal';fontWeightInput.value=String(layer?.fontWeight||'600');sizeInput.value=String(layer?.fontSize||16);alignInput.value=layer?.textAlign||'center';fontColorInput.value=layer?.fontColor||'#F4E6CF';$('faceTextCount').textContent=textInput.value.length+' / 120';renderTextLayerList();}
  function renderFaceDesign(){
-  const fontFamilies={serif:'Georgia, "Times New Roman", serif',sans:'Arial, Helvetica, sans-serif',display:'Impact, Haettenschweiler, sans-serif',mono:'"Courier New", monospace'};
-  faces.forEach(function(face){
-   const node=document.querySelector('.product-cube .face.'+face);
-   if(!node)return;
-   const typography=typographyFor(face);
-   let textFrame=node.querySelector('.face-text-frame');
-   let text=textFrame?.querySelector('.face-custom-text');
-   const value=studio.faceTexts[face]||'';
-   if(value){
-    if(!textFrame){
-     textFrame=document.createElement('div');textFrame.className='face-text-frame';textFrame.dataset.face=face;
-     text=document.createElement('span');text.className='face-custom-text';
-     const handle=document.createElement('button');handle.type='button';handle.className='face-text-resize';handle.setAttribute('aria-label','Resize '+labels[face]+' text');handle.title='Drag to resize text box';
-     textFrame.append(text,handle);node.append(textFrame);
-    }
-    const textPosition=textPositionFor(face);
-    textFrame.style.left=textPosition.left+'%';textFrame.style.top=textPosition.top+'%';
-    textFrame.style.width=textPosition.width+'%';textFrame.style.height=textPosition.height+'%';
-    text.textContent=value;text.hidden=false;
-    text.style.fontSize=String(typography.fontSize||16)+'px';
-    text.style.fontFamily=fontFamilies[typography.fontFamily]||fontFamilies.serif;
-    text.style.fontStyle=typography.fontStyle||'normal';
-    text.style.fontWeight=String(typography.fontWeight||'600');
-    text.style.color=typography.fontColor||'#F4E6CF';
-    text.style.textAlign=typography.textAlign||'center';
-    text.style.justifyContent=(typography.textAlign==='left'?'flex-start':typography.textAlign==='right'?'flex-end':'center');
-   }else if(textFrame)textFrame.remove();
-   node.classList.toggle('has-custom-text',!!value);
-   node.classList.toggle('has-artwork',!!artworkByFace[face]);
-   let frame=node.querySelector('.face-artwork-frame');
-   if(artworkByFace[face]){
-    if(!frame){
-     frame=document.createElement('div');frame.className='face-artwork-frame';frame.dataset.face=face;
-     const art=document.createElement('img');art.className='face-artwork';art.alt='Imported artwork concept on '+labels[face]+' side';art.draggable=false;
-     const handle=document.createElement('button');handle.type='button';handle.className='face-artwork-resize';handle.setAttribute('aria-label','Resize '+labels[face]+' artwork');handle.title='Drag to resize';
-     frame.append(art,handle);node.append(frame);
-    }
-    frame.querySelector('img').src=artworkByFace[face];
-    const position=artworkPositionFor(face);
-    frame.style.left=position.left+'%';frame.style.top=position.top+'%';
-    frame.style.width=position.width+'%';frame.style.height=position.height+'%';
-   }else if(frame)frame.remove();
-  });
-  const topDefault=document.querySelector('.product-cube .face.top > span:not(.face-custom-text)');
-  if(topDefault)topDefault.hidden=!!studio.faceTexts.top;
+ const fonts={serif:'Georgia, "Times New Roman", serif',sans:'Arial, Helvetica, sans-serif',display:'Impact, Haettenschweiler, sans-serif',mono:'"Courier New", monospace',arial:'Arial, sans-serif',georgia:'Georgia, serif',times:'"Times New Roman", serif',verdana:'Verdana, sans-serif',tahoma:'Tahoma, sans-serif',trebuchet:'"Trebuchet MS", sans-serif',palatino:'Palatino, serif',garamond:'Garamond, serif','noto-sans':'"Noto Sans", "Noto Sans Devanagari", "Noto Sans Kannada", sans-serif','noto-serif':'"Noto Serif", "Noto Serif Devanagari", "Noto Serif Kannada", serif',kannada:'"Noto Sans Kannada", "Noto Sans Devanagari", sans-serif',custom:'"DesignProUploadedFont", sans-serif'};
+ faces.forEach(face=>{const node=document.querySelector('.product-cube .face.'+face);if(!node)return;const layers=textLayersFor(face);Array.from(node.querySelectorAll('.face-text-frame')).forEach(frame=>{if(!layers.some(layer=>layer.id===frame.dataset.layerId))frame.remove();});
+ layers.forEach((layer,index)=>{let frame=Array.from(node.querySelectorAll('.face-text-frame')).find(item=>item.dataset.layerId===layer.id),text=frame?.querySelector('.face-custom-text');if(!frame){frame=document.createElement('div');frame.className='face-text-frame';frame.dataset.face=face;frame.dataset.layerId=layer.id;frame.tabIndex=0;frame.setAttribute('role','button');frame.setAttribute('aria-label','Text layer '+(index+1)+' on '+labels[face]);text=document.createElement('span');text.className='face-custom-text';const handle=document.createElement('button');handle.type='button';handle.className='face-text-resize';handle.setAttribute('aria-label','Resize text layer '+(index+1));frame.append(text,handle);node.append(frame);}const p=layer.position||(layer.position=textPositionFor(face));frame.style.left=p.left+'%';frame.style.top=p.top+'%';frame.style.width=p.width+'%';frame.style.height=p.height+'%';text.textContent=String(layer.text||'');text.hidden=!layer.text;text.style.fontSize=(layer.fontSize||16)+'px';text.style.fontFamily=fonts[layer.fontFamily]||fonts.serif;text.style.fontStyle=layer.fontStyle||'normal';text.style.fontWeight=String(layer.fontWeight||'600');text.style.color=layer.fontColor||'#F4E6CF';text.style.textAlign=layer.textAlign||'center';text.style.justifyContent=layer.textAlign==='left'?'flex-start':layer.textAlign==='right'?'flex-end':'center';frame.classList.toggle('is-selected',studio.selectedFace===face&&studio.selectedTextLayerIds?.[face]===layer.id);});
+ node.classList.toggle('has-custom-text',layers.some(layer=>!!layer.text));node.classList.toggle('has-artwork',!!artworkByFace[face]);let art=node.querySelector('.face-artwork-frame');if(artworkByFace[face]){if(!art){art=document.createElement('div');art.className='face-artwork-frame';art.dataset.face=face;const img=document.createElement('img');img.className='face-artwork';img.alt='Imported artwork on '+labels[face];img.draggable=false;const handle=document.createElement('button');handle.type='button';handle.className='face-artwork-resize';handle.setAttribute('aria-label','Resize '+labels[face]+' artwork');art.append(img,handle);node.append(art);}art.querySelector('img').src=artworkByFace[face];const p=artworkPositionFor(face);art.style.left=p.left+'%';art.style.top=p.top+'%';art.style.width=p.width+'%';art.style.height=p.height+'%';}else art?.remove();});
+ const topDefault=document.querySelector('.product-cube .face.top > span:not(.face-custom-text)');if(topDefault)topDefault.hidden=textLayersFor('top').some(layer=>!!layer.text);
  }
  function updateModel(){
   const category=state.catalog?.categories?.find(function(c){return c.id===state.category;});
@@ -390,10 +354,10 @@ function initStudioEnhancements(){
   if(studio.shape==='bottle'){w=94;d=94;h=210;}
   if(studio.shape==='label-sheet'){w=230;d=165;h=34;}
   if(studio.shape==='display'){w=170;d=90;h=210;}
-  const radius=studio.shape==='rounded'?14:studio.shape==='custom'?8:3;
+  const radius=['rounded','round-box'].includes(studio.shape)?18:studio.shape==='custom'?8:3;
   const values={'--cube-w':w+'px','--cube-h':h+'px','--cube-d':d+'px','--cube-d-half':(d/2)+'px','--cube-w-half':(w/2)+'px','--cube-h-half':(h/2)+'px','--cube-left':((w-d)/2)+'px','--cube-top':((h-d)/2)+'px','--cube-radius':radius+'px'};
   Object.entries(values).forEach(function(pair){cube.style.setProperty(pair[0],pair[1]);});
-  cube.dataset.shape=studio.shape;cube.classList.toggle('is-rounded',studio.shape==='rounded');cube.dataset.material=$('materialSelect').value||'premium';cube.dataset.finish=$('finishSelect').value||'matte';
+  cube.dataset.shape=studio.shape;cube.classList.toggle('is-rounded',['rounded','round-box'].includes(studio.shape));cube.classList.toggle('is-oval',studio.shape==='oval-box');cube.classList.toggle('is-hexagon',studio.shape==='hexagon-box');cube.classList.toggle('is-pentagon',studio.shape==='pentagon-box');cube.dataset.material=$('materialSelect').value||'premium';cube.dataset.finish=$('finishSelect').value||'matte';
   const frontFace=document.querySelector('.product-cube .face.front');let bottleCap=frontFace.querySelector('.bottle-cap');if(studio.shape==='bottle'){if(!bottleCap){bottleCap=document.createElement('span');bottleCap.className='bottle-cap';bottleCap.setAttribute('aria-hidden','true');frontFace.append(bottleCap);}}else if(bottleCap)bottleCap.remove();
   let labelGrid=frontFace.querySelector('.label-grid-preview');if(studio.shape==='label-sheet'){if(!labelGrid){labelGrid=document.createElement('span');labelGrid.className='label-grid-preview';labelGrid.setAttribute('aria-hidden','true');labelGrid.innerHTML='<i></i><i></i><i></i><i></i><i></i><i></i>';frontFace.append(labelGrid);}}else if(labelGrid)labelGrid.remove();
   faces.forEach(function(face){cube.style.setProperty('--face-'+face,studio.faceColors[face]||state.boxColor||'#373327');});
@@ -412,18 +376,11 @@ function initStudioEnhancements(){
   document.querySelectorAll('#faceSelector [data-face]').forEach(function(button){
    const selected=button.dataset.face===face;button.setAttribute('aria-selected',String(selected));button.setAttribute('tabindex',selected?'0':'-1');
   });
-  const typography=typographyFor(face);
+  const layers=textLayersFor(face);if(!studio.selectedTextLayerIds?.[face]&&layers.length)studio.selectedTextLayerIds={...(studio.selectedTextLayerIds||{}),[face]:layers[0].id};
   colourInput.value=studio.faceColors[face]||'#373327';
-  fontColorInput.value=typography.fontColor||'#F4E6CF';
-  textInput.value=studio.faceTexts[face]||'';
-  fontFamilyInput.value=typography.fontFamily||'serif';
-  fontStyleInput.value=typography.fontStyle||'normal';
-  fontWeightInput.value=String(typography.fontWeight||'600');
-  sizeInput.value=String(typography.fontSize||16);
-  alignInput.value=typography.textAlign||'center';
   $('activeFaceTitle').textContent=labels[face]+' side';
   $('faceEditorPanel').setAttribute('aria-labelledby','faceTab-'+face);
-  $('faceTextCount').textContent=textInput.value.length+' / 120';
+  syncTextLayerEditor();
   $('faceArtworkStatus').textContent=artworkByFace[face]?'Image ready. Drag it on the 3D side to position; drag the corner handle to resize.':'Upload an image, then drag it directly on the 3D side to position it. Use the corner handle to resize.';
  }
  function defaultShapeForCategory(){
@@ -435,6 +392,10 @@ function initStudioEnhancements(){
  $('shapePreset').value=studio.shape;
  $('shapePreset').addEventListener('change',function(){studio.shape=$('shapePreset').value;manualShape=true;updateModel();});
  $('faceSelector').addEventListener('click',function(event){const button=event.target.closest('[data-face]');if(button)selectFace(button.dataset.face);});
+ $('textLayerList').addEventListener('click',event=>{const button=event.target.closest('[data-text-layer-id]');if(!button)return;studio.selectedTextLayerIds={...(studio.selectedTextLayerIds||{}),[studio.selectedFace]:button.dataset.textLayerId};syncTextLayerEditor();updateModel();});
+ $('addTextLayer').addEventListener('click',()=>{const face=studio.selectedFace,layers=textLayersFor(face);if(layers.length>=8)return notify('A maximum of 8 text layers is allowed on each side.',true);const base=selectedTextLayer(face),id='text-'+face+'-'+Date.now().toString(36);const layer={id,text:'Your text',position:{left:base?Math.min(78,base.position.left+4):12,top:base?Math.min(78,base.position.top+5):62,width:base?.position.width||76,height:base?.position.height||25},fontFamily:base?.fontFamily||'serif',fontStyle:base?.fontStyle||'normal',fontWeight:base?.fontWeight||'600',fontSize:base?.fontSize||16,fontColor:base?.fontColor||'#F4E6CF',textAlign:base?.textAlign||'center'};layers.push(layer);studio.selectedTextLayerIds={...(studio.selectedTextLayerIds||{}),[face]:id};syncTextLayerEditor();updateModel();});
+ $('duplicateTextLayer').addEventListener('click',()=>{const face=studio.selectedFace,layers=textLayersFor(face),base=selectedTextLayer(face);if(!base||layers.length>=8)return notify('A maximum of 8 text layers is allowed on each side.',true);const copy={...base,id:'text-'+face+'-'+Date.now().toString(36),position:{...base.position,left:Math.min(80,base.position.left+5),top:Math.min(80,base.position.top+5)}};layers.push(copy);studio.selectedTextLayerIds={...(studio.selectedTextLayerIds||{}),[face]:copy.id};syncTextLayerEditor();updateModel();});
+ $('deleteTextLayer').addEventListener('click',()=>{const face=studio.selectedFace,selected=selectedTextLayer(face);if(!selected)return;studio.textLayers[face]=textLayersFor(face).filter(layer=>layer.id!==selected.id);studio.selectedTextLayerIds={...(studio.selectedTextLayerIds||{}),[face]:studio.textLayers[face][0]?.id||''};studio.faceTexts[face]=studio.textLayers[face][0]?.text||'';syncTextLayerEditor();updateModel();});
  $('faceSelector').addEventListener('keydown',function(event){
   const current=faces.indexOf(studio.selectedFace);let next=current;
   if(event.key==='ArrowRight'||event.key==='ArrowDown')next=(current+1)%faces.length;
@@ -444,15 +405,14 @@ function initStudioEnhancements(){
   else return;
   event.preventDefault();selectFace(faces[next]);$('faceTab-'+faces[next]).focus();
  });
- colourInput.addEventListener('input',function(){studio.faceColors[studio.selectedFace]=colourInput.value.toUpperCase();updateModel();});
- fontColorInput.addEventListener('input',function(){typographyFor(studio.selectedFace).fontColor=fontColorInput.value.toUpperCase();updateModel();});
- textInput.addEventListener('input',function(){studio.faceTexts[studio.selectedFace]=textInput.value.slice(0,120);$('faceTextCount').textContent=textInput.value.length+' / 120';updateModel();});
- fontFamilyInput.addEventListener('change',function(){typographyFor(studio.selectedFace).fontFamily=fontFamilyInput.value;updateModel();});
- fontStyleInput.addEventListener('change',function(){typographyFor(studio.selectedFace).fontStyle=fontStyleInput.value;updateModel();});
- fontWeightInput.addEventListener('change',function(){typographyFor(studio.selectedFace).fontWeight=fontWeightInput.value;updateModel();});
- sizeInput.addEventListener('input',function(){typographyFor(studio.selectedFace).fontSize=Math.max(10,Math.min(48,Number(sizeInput.value)||16));updateModel();});
- alignInput.addEventListener('change',function(){typographyFor(studio.selectedFace).textAlign=alignInput.value;updateModel();});
- $('clearFaceText').addEventListener('click',function(){studio.faceTexts[studio.selectedFace]='';textInput.value='';$('faceTextCount').textContent='0 / 120';updateModel();});
+ colourInput.addEventListener('input',()=>{studio.faceColors[studio.selectedFace]=colourInput.value.toUpperCase();updateModel();});
+ function activeLayer(){return selectedTextLayer(studio.selectedFace);}
+ fontColorInput.addEventListener('input',()=>{const l=activeLayer();if(l)l.fontColor=fontColorInput.value.toUpperCase();typographyFor(studio.selectedFace).fontColor=fontColorInput.value.toUpperCase();updateModel();});
+ textInput.addEventListener('input',()=>{const l=activeLayer();if(l)l.text=textInput.value.slice(0,120);studio.faceTexts[studio.selectedFace]=textInput.value.slice(0,120);$('faceTextCount').textContent=textInput.value.length+' / 120';renderTextLayerList();updateModel();});
+ fontFamilyInput.addEventListener('change',()=>{const l=activeLayer();if(l)l.fontFamily=fontFamilyInput.value;typographyFor(studio.selectedFace).fontFamily=fontFamilyInput.value;updateModel();});
+ fontStyleInput.addEventListener('change',()=>{const l=activeLayer();if(l)l.fontStyle=fontStyleInput.value;updateModel();});fontWeightInput.addEventListener('change',()=>{const l=activeLayer();if(l)l.fontWeight=fontWeightInput.value;updateModel();});
+ sizeInput.addEventListener('input',()=>{const l=activeLayer(),v=Math.max(10,Math.min(48,Number(sizeInput.value)||16));if(l)l.fontSize=v;updateModel();});alignInput.addEventListener('change',()=>{const l=activeLayer();if(l)l.textAlign=alignInput.value;updateModel();});
+ $('clearFaceText').addEventListener('click',()=>{const l=activeLayer();if(l)l.text='';studio.faceTexts[studio.selectedFace]=textLayersFor(studio.selectedFace)[0]?.text||'';syncTextLayerEditor();updateModel();});
  $('faceImageUpload').addEventListener('change',async function(event){
   const file=event.target.files&&event.target.files[0];if(!file)return;
   try{await loadFaceImage(file,studio.selectedFace);}catch(error){$('faceArtworkStatus').textContent=error.message||'Could not load this image.';notify(error.message||'Could not load this image.',true);}
@@ -550,7 +510,8 @@ function initStudioEnhancements(){
  cube.addEventListener('pointerdown',function(event){
   const frame=event.target.closest('.face-text-frame');if(!frame)return;
   const face=frame.dataset.face,position=textPositionFor(face),faceNode=frame.parentElement;
-  textGesture={face,frame,pointerId:event.pointerId,mode:event.target.closest('.face-text-resize')?'resize':'move',startX:event.clientX,startY:event.clientY,faceWidth:Math.max(1,faceNode.clientWidth),faceHeight:Math.max(1,faceNode.clientHeight),start:{left:position.left,top:position.top,width:position.width,height:position.height,fontSize:typographyFor(face).fontSize||16}};
+  const layer=textLayersFor(face).find(item=>item.id===frame.dataset.layerId);if(!layer)return;const position=layer.position||(layer.position=textPositionFor(face));
+  textGesture={face,layerId:layer.id,frame,pointerId:event.pointerId,mode:event.target.closest('.face-text-resize')?'resize':'move',startX:event.clientX,startY:event.clientY,faceWidth:Math.max(1,faceNode.clientWidth),faceHeight:Math.max(1,faceNode.clientHeight),start:{left:position.left,top:position.top,width:position.width,height:position.height,fontSize:layer.fontSize||16}};
   try{frame.setPointerCapture(event.pointerId);}catch{}
   event.preventDefault();event.stopPropagation();
  });
@@ -571,13 +532,13 @@ function initStudioEnhancements(){
  });
  cube.addEventListener('pointermove',function(event){
   if(!textGesture||event.pointerId!==textGesture.pointerId)return;
-  const gesture=textGesture,position=textPositionFor(gesture.face);
+  const gesture=textGesture,layer=textLayersFor(gesture.face).find(item=>item.id===gesture.layerId);if(!layer)return;const position=layer.position||(layer.position={...textPositionFor(gesture.face)});
   const dx=(event.clientX-gesture.startX)/gesture.faceWidth*100,dy=(event.clientY-gesture.startY)/gesture.faceHeight*100;
   if(gesture.mode==='resize'){
    position.width=clampPercent(gesture.start.width+dx,18,100-gesture.start.left);
    position.height=clampPercent(gesture.start.height+dy,10,100-gesture.start.top);
    const fontSize=Math.max(10,Math.min(48,gesture.start.fontSize+dy*.45));
-   typographyFor(gesture.face).fontSize=Math.round(fontSize);
+   layer.fontSize=Math.round(fontSize);typographyFor(gesture.face).fontSize=Math.round(fontSize);
    const textNode=gesture.frame.querySelector('.face-custom-text');if(textNode)textNode.style.fontSize=Math.round(fontSize)+'px';
    if(studio.selectedFace===gesture.face)sizeInput.value=String(Math.round(fontSize));
   }else{
@@ -597,6 +558,8 @@ function initStudioEnhancements(){
 $('productSelect').addEventListener('change',function(){defaultShapeForCategory();updateModel();});
  ['materialSelect','finishSelect','lengthInput','widthInput','heightInput'].forEach(function(id){$(id).addEventListener('input',updateModel);$(id).addEventListener('change',updateModel);});
  document.querySelectorAll('.swatch').forEach(function(button){button.addEventListener('click',function(){faces.forEach(function(face){studio.faceColors[face]=state.boxColor;});selectFace(studio.selectedFace);updateModel();});});
+ const gridToggle=$('previewGridToggle');gridToggle.addEventListener('change',()=>cube.classList.toggle('grid-visible',gridToggle.checked));cube.classList.toggle('grid-visible',gridToggle.checked);
+ $('customFontUpload').addEventListener('change',async event=>{const file=event.target.files?.[0];if(!file)return;const ext=(file.name.split('.').pop()||'').toLowerCase();if(!['ttf','otf','woff','woff2'].includes(ext)||file.size>5*1024*1024){notify('Choose a TTF, OTF, WOFF or WOFF2 font smaller than 5 MB.',true);event.target.value='';return;}try{const url=URL.createObjectURL(file),font=new FontFace('DesignProUploadedFont','url('+url+')');await font.load();document.fonts.add(font);const layer=activeLayer();if(layer)layer.fontFamily='custom';fontFamilyInput.value='custom';$('customFontStatus').textContent=file.name+' loaded locally for this browser session. It is not uploaded or embedded in saved quotes.';updateModel();notify('Custom font loaded for the selected text layer.');}catch{notify('This font could not be loaded by the browser. Try a WOFF2 or TTF file.',true);}finally{event.target.value='';}});
  const slider=$('rotationSlider'),rotationValue=$('rotationValue'),toggle=$('view360Toggle');
  function syncRotation(){const value=Math.round(((state.rotation.y%360)+360)%360);slider.value=String(value);rotationValue.textContent=value+'°';}
  slider.addEventListener('input',function(){scene.classList.remove('is-spinning');toggle.setAttribute('aria-pressed','false');toggle.textContent='360° view';state.rotation.y=Number(slider.value);applyRotation();syncRotation();});
@@ -618,7 +581,7 @@ $('productSelect').addEventListener('change',function(){defaultShapeForCategory(
    faces.forEach(function(face){const chip=document.createElement('span');chip.title=labels[face]+': '+(latestConcept.palette?.[face]||'#373327');chip.style.backgroundColor=latestConcept.palette?.[face]||'#373327';palette.append(chip);});
    const apply=document.createElement('button');apply.type='button';apply.className='primary-button';apply.textContent='Apply this concept';apply.addEventListener('click',function(){
     faces.forEach(function(face){if(/^#[0-9a-f]{6}$/i.test(latestConcept.palette?.[face]||''))studio.faceColors[face]=latestConcept.palette[face].toUpperCase();if(typeof latestConcept.sideText?.[face]==='string')studio.faceTexts[face]=latestConcept.sideText[face].slice(0,120);});
-    if(['rectangular','cube','tall','flat','rounded','bottle','label-sheet','display','custom'].includes(latestConcept.shape)){studio.shape=latestConcept.shape;$('shapePreset').value=studio.shape;manualShape=true;}
+    if(['rectangular','cube','tall','flat','rounded','oval-box','round-box','hexagon-box','pentagon-box','bottle','label-sheet','display','custom'].includes(latestConcept.shape)){studio.shape=latestConcept.shape;$('shapePreset').value=studio.shape;manualShape=true;}
     const category=state.catalog.categories.find(function(c){return c.id===state.category;});
     if(category?.materials.includes(latestConcept.material))$('materialSelect').value=latestConcept.material;
     if(category?.finishes.includes(latestConcept.finish))$('finishSelect').value=latestConcept.finish;
@@ -632,7 +595,7 @@ $('productSelect').addEventListener('change',function(){defaultShapeForCategory(
   }catch(error){aiStatus.textContent=error.message||'The local AI service is unavailable.';notify(error.message||'The local AI service is unavailable.',true);}
   finally{button.disabled=false;button.textContent='Generate concept ↗';}
  });
- defaultShapeForCategory();selectFace(studio.selectedFace||'front');updateModel();syncRotation();
+ defaultShapeForCategory();selectFace(studio.selectedFace||'front');renderTextLayerList();updateModel();syncRotation();
 }
 
 init();
