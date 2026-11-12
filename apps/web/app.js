@@ -56,7 +56,7 @@ function renderHeroTitle(node,value){
  const raw=String(value??'').trim();
  if(!node||!raw)return;
  // Keep CMS content as text; a pipe explicitly separates the highlighted phrase.
- const parts=raw.includes('|')?raw.split('|',2):raw.match(/^(.+?\\.)\\s+(.+)$/);
+ const parts=raw.includes('|')?raw.split('|',2):raw.match(/^(.+?\.)\s+(.+)$/);
  node.replaceChildren();
  node.append(document.createTextNode((parts?.[0]??raw).trim()));
  const accent=(parts?.[1]??'').trim();
