@@ -2,7 +2,7 @@ import {newId,now,audit,runAtomic} from './db.mjs';
 import {CATEGORIES,MATERIALS,FINISHES,KIT_ITEMS} from '../../packages/core/catalog.mjs';
 import {requireActor} from './auth.mjs';
 
-const send=(res,status,data)=>{res.writeHead(status,{'Content-Type':'application/json; charset=utf-8','Cache-Control':'no-store','X-Content-Type-Options':'nosniff'});res.end(JSON.stringify(data));};
+const send=(res,status,data)=>{res.writeHead(status,{'Content-Type':'application/json; charset=utf-8','Cache-Control':'no-store','X-Content-Type-Options':'nosniff'});res.end(JSON.stringify(data));return true;};
 const fail=(status,message)=>Object.assign(new Error(message),{status});
 async function read(req,max=50000){const chunks=[];let size=0;for await(const c of req){size+=c.length;if(size>max)throw fail(413,'Request is too large');chunks.push(c);}let x;try{x=JSON.parse(Buffer.concat(chunks).toString('utf8'));}catch{throw fail(400,'Send a valid JSON object');}if(!x||Array.isArray(x)||typeof x!=='object')throw fail(400,'Send a JSON object');return x;}
 const text=(v,label,max=180,required=true)=>{if(typeof v!=='string'||(required&&!v.trim())||v.length>max)throw fail(400,label+' is required and must be at most '+max+' characters');return v.trim();};
