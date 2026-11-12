@@ -26,7 +26,9 @@ jobs:
       - name: Check JavaScript syntax
         run: |
           node --check apps/api/server.mjs
+          node --check apps/api/admin-management.mjs
           node --check apps/web/app.js
+          node --check apps/web/admin.js
       - name: Run all unit, API, webhook and negative UAT tests
         run: npm test
       - name: Verify SQLite migration idempotency and schema integrity

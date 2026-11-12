@@ -12,6 +12,7 @@ import {CATEGORIES,MATERIALS,FINISHES,KIT_ITEMS} from '../../packages/core/catal
 import {DEFAULT_GRANTS,FLOWS,can,changeState} from '../../packages/core/policies.mjs';
 import {planRefund} from '../../packages/skeleton/refunds.mjs';
 import {verifyCheckoutSignature,verifyWebhook} from '../../packages/skeleton/signatures.mjs';
+import {migrateAdmin,publicCatalog,getRateCard,handleAdminApi} from './admin-management.mjs';
 
 const WEB_ROOT=resolve(fileURLToPath(new URL('../web/',import.meta.url)));
 const PROD=process.env.NODE_ENV==='production';
@@ -103,16 +104,38 @@ async function localDesignConcept({brief,categoryId,material,finish,dimensions})
 
 function auditOrder(db,actor,event,id,extra={}){audit(db,actor?.id||null,event,'order',id,extra);}
 function publicQuote(q){return {...q,configuration:JSON.parse(q.configuration),estimate:JSON.parse(q.estimate)};}
-function respondStatic(req,res,path){const routes={'/':'index.html','/index.html':'index.html','/styles.css':'styles.css','/app.js':'app.js','/ux.css':'ux.css','/assets/brand.svg':'assets/brand.svg'};const asset=routes[path];if(!asset)return false;const file=resolve(WEB_ROOT,asset);if(!file.startsWith(WEB_ROOT)||!existsSync(file))return false;const types={'.html':'text/html; charset=utf-8','.css':'text/css; charset=utf-8','.js':'text/javascript; charset=utf-8','.svg':'image/svg+xml'};res.writeHead(200,{'Content-Type':types[extname(file)]||'application/octet-stream','Cache-Control':PROD?'public, max-age=300':'no-store','X-Content-Type-Options':'nosniff','Content-Security-Policy':"default-src 'self'; img-src 'self' data:; style-src 'self'; script-src 'self'; connect-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'none'"});res.end(readFileSync(file));return true;}
+function respondStatic(req,res,path){const routes={'/':'index.html','/index.html':'index.html','/styles.css':'styles.css','/app.js':'app.js','/ux.css':'ux.css','/admin':'admin.html','/admin/':'admin.html','/admin.html':'admin.html','/admin.js':'admin.js','/admin.css':'admin.css','/assets/brand.svg':'assets/brand.svg'};const asset=routes[path];if(!asset)return false;const file=resolve(WEB_ROOT,asset);if(!file.startsWith(WEB_ROOT)||!existsSync(file))return false;const types={'.html':'text/html; charset=utf-8','.css':'text/css; charset=utf-8','.js':'text/javascript; charset=utf-8','.svg':'image/svg+xml'};res.writeHead(200,{'Content-Type':types[extname(file)]||'application/octet-stream','Cache-Control':PROD?'public, max-age=300':'no-store','X-Content-Type-Options':'nosniff','Content-Security-Policy':"default-src 'self'; img-src 'self' data: https:; style-src 'self'; script-src 'self'; connect-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'none'"});res.end(readFileSync(file));return true;}
+
+function serveManagedMedia(db,res,id){
+ const asset=db.prepare('SELECT data_url,mime_type FROM media_assets WHERE id=?').get(id);
+ if(!asset?.data_url)return false;
+ const data=Buffer.from(asset.data_url.split(',')[1],'base64');
+ res.writeHead(200,{'Content-Type':asset.mime_type,'Content-Length':data.length,'Cache-Control':'public, max-age=86400','X-Content-Type-Options':'nosniff','Content-Security-Policy':"default-src 'none'; img-src 'self'; sandbox"});
+ res.end(data);return true;
+}
+function serveCmsPage(db,res,slug){
+ const page=db.prepare('SELECT * FROM cms_pages WHERE slug=? AND published=1').get(slug);
+ if(!page)return false;
+ const escapeHtml=value=>String(value??'').replace(/[&<>"']/g,char=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[char]));
+ const content=escapeHtml(page.body).split(/\r?\n/).map(line=>line?'<p>'+line+'</p>':'').join('');
+ const html='<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>'+escapeHtml(page.meta_title||page.title)+'</title><meta name="description" content="'+escapeHtml(page.meta_description)+'"><style>body{font:16px/1.8 system-ui;margin:0;background:#f7f6f2;color:#253536}main{max-width:850px;margin:8vh auto;padding:40px;background:white;border-radius:12px}a{color:#a86e4f}h1{font:40px Georgia}</style></head><body><main><a href="/">← DesignPro home</a><h1>'+escapeHtml(page.title)+'</h1>'+content+'</main></body></html>';
+ res.writeHead(200,{'Content-Type':'text/html; charset=utf-8','Cache-Control':'no-store','X-Content-Type-Options':'nosniff','Content-Security-Policy':"default-src 'self'; style-src 'unsafe-inline'; base-uri 'none'; object-src 'none'; frame-ancestors 'none'"});
+ res.end(html);return true;
+}
+
 export function createServer(db=migrate(openDb())){
+ migrateAdmin(db);
  const rate=new Map();
  async function handler(req,res){let pathname;try{
   const url=new URL(req.url||'/',`http://${req.headers.host||'localhost'}`);pathname=url.pathname;
+  if(req.method==='GET'&&pathname.startsWith('/api/v1/media/')){if(serveManagedMedia(db,res,pathname.slice('/api/v1/media/'.length)))return;throw httpError(404,'Media asset not found');}
+  if(req.method==='GET'&&pathname.startsWith('/pages/')){if(serveCmsPage(db,res,decodeURIComponent(pathname.slice('/pages/'.length))))return;throw httpError(404,'Page not found');}
   if(req.method==='GET'&&respondStatic(req,res,pathname))return;
+  if(await handleAdminApi({db,req,res,pathname}))return;
   if(pathname==='/api/v1/health')return safeJson(res,200,{status:'ok',application:'DesignPro',paymentsEnabled:process.env.PAYMENTS_ENABLED==='true',uatDemoEnabled:!PROD&&process.env.UAT_DEMO_ENABLED==='true',aiProvider:process.env.AI_PROVIDER==='ollama'?'ollama':'disabled'});
-  if(pathname==='/api/v1/catalog'&&req.method==='GET')return safeJson(res,200,{categories:CATEGORIES,materials:MATERIALS,finishes:FINISHES,kitItems:KIT_ITEMS});
+  if(pathname==='/api/v1/catalog'&&req.method==='GET')return safeJson(res,200,publicCatalog(db));
    if(pathname==='/api/v1/ai/design-concepts'&&req.method==='POST'){rateLimit(rate,req,'ai-design',8);const input=await body(req,6000);const brief=typeof input.brief==='string'?input.brief.trim():'';if(brief.length<20||brief.length>1500)throw httpError(400,'Describe your product, audience and design mood in 20 to 1,500 characters.');return safeJson(res,200,await localDesignConcept({brief,categoryId:input.categoryId,material:input.material,finish:input.finish,dimensions:input.dimensions}));}
-  if(pathname==='/api/v1/estimate'&&req.method==='POST'){rateLimit(rate,req,'estimate',60);return safeJson(res,200,estimate(await body(req)));}
+  if(pathname==='/api/v1/estimate'&&req.method==='POST'){rateLimit(rate,req,'estimate',60);return safeJson(res,200,estimate(await body(req),getRateCard(db),publicCatalog(db).categories));}
   if(pathname==='/api/v1/auth/register'&&req.method==='POST'){
    rateLimit(rate,req,'register',6);const x=await body(req);
    if(getUser(db,x.email))throw httpError(409,'Account already exists');
