@@ -51,6 +51,17 @@ function updateAccount(){const btn=$('accountButton');if(state.user){btn.textCon
 async function initSession(){try{const d=await api('/auth/me');state.user=d.user;const csrf=await api('/auth/csrf');state.csrf=csrf.csrf;updateAccount();await loadWorkspace();}catch{state.user=null;state.csrf=null;updateAccount();}}
 async function saveQuote(){if(!state.estimate)return notify('Complete the product configuration before saving.',true);if(!state.user){showAuth();notify('Sign in to save your estimate.');return;}try{const q=await api('/quotes',{method:'POST',body:getConfig()});notify(`Quotation ${q.id} saved. Our team can now review it.`);$('workspace').scrollIntoView({behavior:'smooth'});await loadWorkspace();}catch(e){notify(e.message,true)}}
 async function action(url,data={},method='POST',message='Changes saved successfully.'){try{const result=await api(url,{method,body:data});notify(result.message||message);await loadWorkspace();return result;}catch(e){notify(e.message,true);return null}}
+
+function renderHeroTitle(node,value){
+ const raw=String(value??'').trim();
+ if(!node||!raw)return;
+ // Keep CMS content as text; a pipe explicitly separates the highlighted phrase.
+ const parts=raw.includes('|')?raw.split('|',2):raw.match(/^(.+?\.)\s+(.+)$/);
+ node.replaceChildren();
+ node.append(document.createTextNode((parts?.[0]??raw).trim()));
+ const accent=(parts?.[1]??'').trim();
+ if(accent){node.append(document.createTextNode(' '));const em=document.createElement('em');em.textContent=accent;node.append(em);}
+}
 function renderEmpty(title,description){return `<div class="empty-list"><strong>${esc(title)}</strong><p>${esc(description)}</p></div>`;}
 function status(v){const stateName=String(v||'unknown').toLowerCase(),kind=/approved|accepted|firm|captured|delivered|closed|succeeded|active|production_ready/.test(stateName)?'positive':/rejected|cancelled|failed|exception|lost|returned|suspended/.test(stateName)?'negative':/pending|review|initiated|hold|proof|requested|submitted/.test(stateName)?'pending':'neutral';return `<span class="status-pill status-${kind}"><i aria-hidden="true"></i>${esc(String(v||'unknown').replaceAll('_',' '))}</span>`}
 function roleName(){return state.user?.role||'CUSTOMER';}
@@ -205,7 +216,7 @@ async function init(){try{const h=await api('/health');state.uatEnabled=!!h.uatD
  document.querySelectorAll('.swatch').forEach(b=>b.addEventListener('click',()=>{state.boxColor=b.dataset.color;document.documentElement.style.setProperty('--box-color',state.boxColor);document.querySelectorAll('.swatch').forEach(s=>s.classList.toggle('selected',s===b));$('swatchName').textContent=b.getAttribute('aria-label');}));
  $('categorySearch').addEventListener('input',debounce(()=>{categoryCards();productCards()}));document.querySelectorAll('[data-filter]').forEach(b=>b.addEventListener('click',()=>{state.filter=b.dataset.filter;document.querySelectorAll('[data-filter]').forEach(x=>x.classList.toggle('active',x===b));categoryCards();productCards();}));initRotation();
  try{state.catalog=await api('/catalog');fillSelect($('productSelect'),state.catalog.categories);kitContent();categoryCards();productCards();chooseCategory('welcome-kit',false);initStudioEnhancements();}catch(e){notify('Cannot load catalog. Start the DesignPro API server.',true);$('categoryGrid').innerHTML=renderEmpty('Catalog unavailable','Start the local API or check the server status.');}
- try{const cms=await api('/site-content');for(const [key,value] of Object.entries(cms.content||{})){const node=document.querySelector('[data-cms-key="'+key+'"]');if(node&&value)node.textContent=value;}const pageLinks=$('cmsPageLinks');if(pageLinks)pageLinks.innerHTML=(cms.pages||[]).map(p=>'<a href="/pages/'+encodeURIComponent(p.slug)+'">'+esc(p.title)+'</a>').join('');const announcement=$('siteAnnouncement');if(announcement){announcement.textContent=cms.content?.announcement||'';announcement.hidden=!cms.content?.announcement;}const contact=$('managedContact');if(contact){const email=cms.content?.contactEmail||'',phone=cms.content?.contactPhone||'';contact.innerHTML=(email?'<a href="mailto:'+esc(email)+'">'+esc(email)+'</a>':'')+(phone?'<a href="tel:'+esc(phone)+'">'+esc(phone)+'</a>':'');}}catch{}await initSession();}
+ try{const cms=await api('/site-content');for(const [key,value] of Object.entries(cms.content||{})){const node=document.querySelector('[data-cms-key="'+key+'"]');if(node&&value){if(key==='heroTitle')renderHeroTitle(node,value);else node.textContent=value;}}const pageLinks=$('cmsPageLinks');if(pageLinks)pageLinks.innerHTML=(cms.pages||[]).map(p=>'<a href="/pages/'+encodeURIComponent(p.slug)+'">'+esc(p.title)+'</a>').join('');const announcement=$('siteAnnouncement');if(announcement){announcement.textContent=cms.content?.announcement||'';announcement.hidden=!cms.content?.announcement;}const contact=$('managedContact');if(contact){const email=cms.content?.contactEmail||'',phone=cms.content?.contactPhone||'';contact.innerHTML=(email?'<a href="mailto:'+esc(email)+'">'+esc(email)+'</a>':'')+(phone?'<a href="tel:'+esc(phone)+'">'+esc(phone)+'</a>':'');}}catch{}await initSession();}
 
 function initStudioEnhancements(){
  if(!$('productCube')||document.getElementById('designStudioControls'))return;
