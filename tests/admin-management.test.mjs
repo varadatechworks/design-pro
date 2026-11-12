@@ -28,7 +28,7 @@ test('admin CMS, catalogue, product, media and effective-dated pricing managemen
   const invalidCost=await request(base,'/api/v1/admin/management/cost-components',{method:'POST',cookie,csrf,body:{code:'bad',label:'Invalid',scope:'material',materialId:'greyboard',condition:'always',basis:'unknown',rateMinor:100,effectiveFrom:new Date().toISOString().slice(0,10)}});
   assert.equal(invalidCost.code,400);
   const costEstimate=await request(base,'/api/v1/estimate',{method:'POST',body:{categoryId:'test-box',quantity:10,material:'greyboard',finish:'matte'}});
-  assert.equal(costEstimate.code,200);const costList=await request(base,'/api/v1/admin/management/cost-components');const greyboardRecord=costList.body.components.find(c=>c.code==='greyboard-sheet');assert.ok(greyboardRecord);assert.ok(costEstimate.body.breakdown.some(x=>x.code==='component-'+greyboardRecord.id));
+  assert.equal(costEstimate.code,200);const costList=await request(base,'/api/v1/admin/management/cost-components',{cookie});const greyboardRecord=costList.body.components.find(c=>c.code==='greyboard-sheet');assert.ok(greyboardRecord);assert.ok(costEstimate.body.breakdown.some(x=>x.code==='component-'+greyboardRecord.id));
   createUser(db,{email:'buyer@designpro.test',displayName:'Buyer',password:'Strong Buyer Password 123!',role:'CUSTOMER',verified:true});
   const buyerLogin=await request(base,'/api/v1/auth/login',{method:'POST',body:{email:'buyer@designpro.test',password:'Strong Buyer Password 123!'}});
   assert.equal(buyerLogin.code,200);
