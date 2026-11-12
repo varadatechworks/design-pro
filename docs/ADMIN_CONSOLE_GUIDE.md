@@ -14,12 +14,13 @@
 - **Categories** control the customer-facing category cards and the options used by the configurator. Materials and finishes must use supported IDs from the admin screen.
 - **Products** appear in the storefront's Featured Products area. Select an active category, maintain a unique URL slug and optionally associate a hosted or DesignPro media image.
 - **Media library** accepts PNG/JPEG/WebP uploads up to 2 MB or HTTPS URLs. Uploaded images are currently stored in SQLite as base64 data for local/UAT convenience.
-- **Pricing & rates** stores category-level base unit, setup, margin and GST rates with effective dates. All money values are stored as integer paise. An estimate uses the latest active effective rate card; if none exists it uses the category's fallback rates and default estimate settings.
+- **Pricing & rates** controls category-level setup, target margin, GST and volume discount with effective dates. All money values are stored as integer paise.
+- **Production costs** maintains effective-dated raw-material, kit-item, production-operation, packing and shipping costs. Each component has a consumption basis (m², piece, 1,000 impressions, running metre, production hour or fixed charge), a consumption factor, optional wastage and optional category/material/finish conditions. The calculator uses dimensions and quantity to derive consumption; the latest active effective component rates are applied to new estimates.
 - **Business settings** stores business identity, contact, GSTIN, address, currency and fulfilment defaults.
 
 ## Pricing safety
 
-Use factory-approved rates only. Validate material costs, machine/click charges, prepress, tooling, wastage, assembly, overhead, margin, freight and tax applicability with finance and production before publishing. Rates are not a substitute for a technical review. A rate change affects future estimates; saved quote estimates remain snapshots. This initial console records changes in the audit log but does not yet implement independent maker-checker approval for rate changes.
+Use factory-approved rates only. Configure every applicable material, printing, cutting, selected finish, packing, production and shipping component before relying on a price. Material m² consumption is estimated from the six-face surface area `2 × (L×W + L×H + W×H)`; cutting metres use the perimeter proxy `2 × (L + W + H)`. These are early-stage consumption estimates, not a substitute for approved dielines, nesting/yield calculations, machine routing or actual supplier quotes. Missing production, printing, selected-finish or shipping coverage is flagged for technical review. Validate overhead, margin, GST applicability and freight with finance and production. A rate change affects future estimates; saved quote estimates remain snapshots. This initial console records changes in the audit log but does not yet implement independent maker-checker approval for rate changes.
 
 ## Operational and production limitations
 
@@ -28,6 +29,8 @@ Use factory-approved rates only. Validate material costs, machine/click charges,
 - Product image URLs must be HTTPS or a registered DesignPro media path.
 - The page editor is plain-text only. A rich-text/WYSIWYG editor and page-specific layout blocks are not included.
 - Category material and finish choices are constrained to the current supported option dictionary. Adding new manufacturing materials/finishes requires engineering and cost-model validation.
+- The component engine supports material and kit costs, production operations, packing and shipping. Use `condition=finish` with the matching finish ID for finish-specific operations, `condition=printing` for print charges and `condition=rush` for rush-only operations. Rates are stored as integer paise; consumption factors are stored as milli-units.
+- The component model deliberately marks estimates for technical review when key operation/printing/finish/shipping costs are missing. Admin must populate actual factory rates; seeded catalogue values remain sample fallback rates.
 - Actual factory rate cards, GST treatment, and final prices must be reviewed by authorized staff.
 - This feature does not enable live payments, production-grade CAD/dielines, PDF proofs or courier booking.
 
