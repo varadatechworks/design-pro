@@ -9,6 +9,7 @@ async function request(base,path,{method='GET',cookie,csrf,body}={}){const respo
 test('admin CMS, catalogue, product, media and effective-dated pricing management',async()=>{
  const {db,server}=setup();await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));const base='http://127.0.0.1:'+server.address().port;
  try{
+  const adminPage=await request(base,'/admin');assert.equal(adminPage.code,200);assert.match(adminPage.body,/DesignPro · Admin Console/);
   assert.equal((await request(base,'/api/v1/admin/management/categories')).code,401);
   const login=await request(base,'/api/v1/auth/login',{method:'POST',body:{email:'root@designpro.test',password:'Strong Admin Password 123!'}});
   assert.equal(login.code,200);const cookie=login.cookie,csrf=login.body.csrf;
