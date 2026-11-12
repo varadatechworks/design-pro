@@ -280,9 +280,10 @@ function initStudioEnhancements(){
  const controls=document.querySelector('.studio-controls');
  const moreOptions=controls.querySelector('.more-options');
  controls.insertBefore(leftTools,moreOptions);leftTools.prepend(panel);
- const previewTools=document.querySelector('.preview-tools');const viewButtons=document.querySelector('.view-buttons');const viewMarkup=viewButtons?viewButtons.outerHTML.replace('class="view-buttons"','class="view-buttons left-view-buttons"'):'';
- leftTools.insertAdjacentHTML('beforeend','<details class="left-studio-details"><summary>Preview & alignment <span>＋</span></summary><section class="designer-card"><div class="left-preview-controls">'+viewMarkup+'<button type="button" id="view360Toggle" aria-pressed="false">360° view</button><label class="rotation-control" for="rotationSlider">Rotate <input id="rotationSlider" type="range" min="0" max="360" step="1" value="331"><output id="rotationValue">331°</output></label></div><label class="grid-toggle"><input type="checkbox" id="previewGridToggle" checked> Show alignment grid</label><p class="designer-help">Grid is a visual alignment aid and is excluded from saved design artwork.</p></section></details>');
- previewTools?.remove();document.querySelector('.preview-toolbar')?.remove();document.querySelector('.preview-badge')?.remove();document.querySelector('.preview-note')?.remove();
+ const previewTools=document.querySelector('.preview-tools');const viewButtons=document.querySelector('.view-buttons');const viewMarkup=viewButtons?viewButtons.outerHTML.replace('class="view-buttons"','class="view-buttons middle-view-buttons"'):'';
+ const studioCenter=document.querySelector('.studio-center');const previewStage=studioCenter?.querySelector('.preview-stage');
+ if(previewStage)previewStage.insertAdjacentHTML('beforebegin','<details class="middle-preview-controls" id="studioPreviewControls"><summary>Preview & alignment <span>＋</span></summary><section class="designer-card"><div class="middle-preview-control-row">'+viewMarkup+'<button type="button" id="view360Toggle" aria-pressed="false">360° view</button><label class="rotation-control" for="rotationSlider">Rotate <input id="rotationSlider" type="range" min="0" max="360" step="1" value="331"><output id="rotationValue">331°</output></label></div><label class="grid-toggle"><input type="checkbox" id="previewGridToggle" checked> Show alignment grid</label><p class="designer-help">Grid is a visual alignment aid and is excluded from saved design artwork.</p></section></details>');
+ previewTools?.remove();document.querySelector('.preview-badge')?.remove();document.querySelector('.preview-note')?.remove();
  const swatches=document.querySelector('.swatches');
  if(swatches)swatches.remove();
 
