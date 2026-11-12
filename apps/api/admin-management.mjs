@@ -101,9 +101,12 @@ export async function handleAdminApi({db,req,res,pathname}){
    const categoryId=x.categoryId?text(x.categoryId,'Category',80):null,materialId=x.materialId?text(x.materialId,'Material',40):null,optionId=x.optionId?text(x.optionId,'Option',60):null;
    if(categoryId&&!db.prepare('SELECT id FROM catalog_categories WHERE id=?').get(categoryId))throw fail(400,'Unknown category');
    if(['material','kit'].includes(scope)&&!materialId)throw fail(400,'Select the raw material or kit item for this cost');
+   if(scope==='material'&&!Object.hasOwn(MATERIALS,materialId))throw fail(400,'Choose a supported raw material');
+   if(scope==='kit'&&!Object.hasOwn(KIT_ITEMS,materialId))throw fail(400,'Choose a supported kit item');
    if(condition==='finish'&&!optionId)throw fail(400,'Select the finish this cost applies to');
+   if(condition==='finish'&&!Object.hasOwn(FINISHES,optionId))throw fail(400,'Choose a supported finish ID');
    if(condition!=='finish'&&optionId)throw fail(400,'Option ID is only used for finish-specific costs');
-   const code=slug(x.code||x.label),label=text(x.label,'Cost label',120),rate=int(x.rateMinor,'Rate',0,10000000000),factor=int(x.factorMilli??1000,'Consumption factor (milli-units)',0,1000000),waste=int(x.wasteBps??0,'Wastage',0,5000),effective=text(x.effectiveFrom||now().slice(0,10),'Effective date',40);
+   const code=slug(x.code||x.label),label=text(x.label,'Cost label',120),rate=int(x.rateMinor,'Rate',0,10000000000),factor=int(x.factorMilli??1000,'Consumption factor (milli-units)',1,1000000),waste=int(x.wasteBps??0,'Wastage',0,5000),effective=text(x.effectiveFrom||now().slice(0,10),'Effective date',40);
    if(effective.length!==10||effective[4]!=='-'||effective[7]!=='-'||Number.isNaN(Date.parse(effective)))throw fail(400,'Effective date must use YYYY-MM-DD');
    const existing=req.method==='POST'?db.prepare("SELECT id FROM pricing_cost_components WHERE code=? AND scope=? AND IFNULL(category_id,'')=IFNULL(?,'') AND IFNULL(material_id,'')=IFNULL(?,'') AND IFNULL(option_id,'')=IFNULL(?,'') AND condition=? AND effective_from=?").get(code,scope,categoryId,materialId,optionId,condition,effective):null;
    const saveId=existing?.id||key;
