@@ -42,7 +42,7 @@ export function migrateAdmin(db){
 }
 export function publicCatalog(db){
  const categories=rows(db,'SELECT * FROM catalog_categories WHERE active=1 ORDER BY sort_order,name').map(categoryRow);
- const products=rows(db,'SELECT id,category_id,name,slug,description,sku,image_url,specifications FROM catalog_products WHERE active=1 ORDER BY sort_order,name').map(p=>({...p,specifications:JSON.parse(p.specifications)}));
+ const products=rows(db,'SELECT p.id,p.category_id,p.name,p.slug,p.description,p.sku,p.image_url,p.specifications FROM catalog_products p JOIN catalog_categories c ON c.id=p.category_id WHERE p.active=1 AND c.active=1 ORDER BY p.sort_order,p.name').map(p=>({...p,specifications:JSON.parse(p.specifications)}));
  return {categories,products,materials:MATERIALS,finishes:FINISHES,kitItems:KIT_ITEMS};
 }
 export function getRateCard(db){const out={};for(const r of rows(db,'SELECT p.* FROM pricing_rate_cards p JOIN (SELECT category_id,MAX(effective_from) effective_from FROM pricing_rate_cards WHERE active=1 AND effective_from<=? GROUP BY category_id) latest ON latest.category_id=p.category_id AND latest.effective_from=p.effective_from',now()))out[r.category_id]={baseUnitMinor:r.base_unit_minor,setupMinor:r.setup_minor,marginBps:r.margin_bps,gstBps:r.gst_bps};return out;}
@@ -78,7 +78,7 @@ export async function handleAdminApi({db,req,res,pathname}){
   if(req.method==='POST'||req.method==='PUT'){
    const x=await read(req),key=id||newId('prd'),category=text(x.categoryId,'Category',80);if(!db.prepare('SELECT id FROM catalog_categories WHERE id=? AND active=1').get(category))throw fail(400,'Choose an active category');
    const data=[category,text(x.name,'Product name',120),slug(x.slug||x.name),text(x.description||'','Description',3000,false),text(x.sku||'','SKU',80,false),text(x.imageUrl||'','Image URL',1000,false),JSON.stringify(x.specifications&&typeof x.specifications==='object'&&!Array.isArray(x.specifications)?x.specifications:{}),x.active===false?0:1,int(x.sortOrder??0,'Sort order',0,100000),now()];
-   if(data[5]&&!/^https:\/\//i.test(data[5]))throw fail(400,'Product image URL must use HTTPS');
+   if(data[5]&&!/^https:\/\//i.test(data[5])&&!/^\/api\/v1\/media\/[a-zA-Z0-9_-]+$/.test(data[5]))throw fail(400,'Product image must be HTTPS or a DesignPro media asset');
    if(req.method==='POST')db.prepare('INSERT INTO catalog_products(id,category_id,name,slug,description,sku,image_url,specifications,active,sort_order,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)').run(key,...data.slice(0,9),data[9],data[9]);
    else{if(!db.prepare('SELECT id FROM catalog_products WHERE id=?').get(key))throw fail(404,'Product not found');db.prepare('UPDATE catalog_products SET category_id=?,name=?,slug=?,description=?,sku=?,image_url=?,specifications=?,active=?,sort_order=?,updated_at=? WHERE id=?').run(...data,key);}
    audit(db,actor.id,'catalog.product.'+(req.method==='POST'?'created':'updated'),'product',key);return send(res,req.method==='POST'?201:200,{id:key});
@@ -89,7 +89,7 @@ export async function handleAdminApi({db,req,res,pathname}){
   if(req.method==='GET')return send(res,200,{rates:rows(db,'SELECT * FROM pricing_rate_cards ORDER BY category_id')});
   if(req.method==='POST'||req.method==='PUT'){
    const x=await read(req),category=text(x.categoryId,'Category',80);if(!db.prepare('SELECT id FROM catalog_categories WHERE id=? AND active=1').get(category))throw fail(400,'Choose an active category');
-   const base=int(x.baseUnitMinor,'Unit rate'),setup=int(x.setupMinor,'Setup rate'),margin=int(x.marginBps,'Margin',100,6500),gst=int(x.gstBps,'GST',0,2800),effective=text(x.effectiveFrom||now(),'Effective date',40);
+   const base=int(x.baseUnitMinor,'Unit rate'),setup=int(x.setupMinor,'Setup rate'),margin=int(x.marginBps,'Margin',100,6500),gst=int(x.gstBps,'GST',0,2800),effective=text(x.effectiveFrom||now().slice(0,10),'Effective date',40);if(!/^\\d{4}-\\d{2}-\\d{2}$/.test(effective)||Number.isNaN(Date.parse(effective)))throw fail(400,'Effective date must use YYYY-MM-DD');
    const existing=db.prepare('SELECT id FROM pricing_rate_cards WHERE category_id=? AND effective_from=?').get(category,effective),key=existing?.id||newId('rate');
    if(existing)db.prepare('UPDATE pricing_rate_cards SET base_unit_minor=?,setup_minor=?,margin_bps=?,gst_bps=?,active=1,updated_by=?,updated_at=? WHERE id=?').run(base,setup,margin,gst,actor.id,now(),key);
    else db.prepare('INSERT INTO pricing_rate_cards(id,category_id,base_unit_minor,setup_minor,margin_bps,gst_bps,effective_from,active,updated_by,updated_at) VALUES (?,?,?,?,?,?,?,?,?,?)').run(key,category,base,setup,margin,gst,effective,1,actor.id,now());
