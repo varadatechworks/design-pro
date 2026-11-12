@@ -22,6 +22,9 @@ export function migrateAdmin(db){
  CREATE TABLE IF NOT EXISTS catalog_categories(id TEXT PRIMARY KEY,name TEXT NOT NULL,tag TEXT NOT NULL DEFAULT '',icon TEXT NOT NULL DEFAULT 'box',base_minor INTEGER NOT NULL DEFAULT 0,setup_minor INTEGER NOT NULL DEFAULT 0,lead_days INTEGER NOT NULL DEFAULT 0,materials TEXT NOT NULL,finishes TEXT NOT NULL,kind TEXT NOT NULL,active INTEGER NOT NULL DEFAULT 1,sort_order INTEGER NOT NULL DEFAULT 0,updated_at TEXT NOT NULL);
  CREATE TABLE IF NOT EXISTS catalog_products(id TEXT PRIMARY KEY,category_id TEXT NOT NULL REFERENCES catalog_categories(id),name TEXT NOT NULL,slug TEXT NOT NULL UNIQUE,description TEXT NOT NULL DEFAULT '',sku TEXT NOT NULL DEFAULT '',image_url TEXT NOT NULL DEFAULT '',specifications TEXT NOT NULL DEFAULT '{}',active INTEGER NOT NULL DEFAULT 1,sort_order INTEGER NOT NULL DEFAULT 0,created_at TEXT NOT NULL,updated_at TEXT NOT NULL);
  CREATE TABLE IF NOT EXISTS pricing_rate_cards(id TEXT PRIMARY KEY,category_id TEXT NOT NULL REFERENCES catalog_categories(id),base_unit_minor INTEGER NOT NULL,setup_minor INTEGER NOT NULL,margin_bps INTEGER NOT NULL DEFAULT 2500,gst_bps INTEGER NOT NULL DEFAULT 1800,discount_bps INTEGER NOT NULL DEFAULT 0,discount_min_qty INTEGER NOT NULL DEFAULT 1,effective_from TEXT NOT NULL,active INTEGER NOT NULL DEFAULT 1,updated_by TEXT NOT NULL,updated_at TEXT NOT NULL,UNIQUE(category_id,effective_from));
+ CREATE TABLE IF NOT EXISTS pricing_cost_components(id TEXT PRIMARY KEY,code TEXT NOT NULL,label TEXT NOT NULL,scope TEXT NOT NULL CHECK(scope IN ('material','kit','production','packing','overhead','shipping')),category_id TEXT REFERENCES catalog_categories(id),material_id TEXT,option_id TEXT,condition TEXT NOT NULL DEFAULT 'always' CHECK(condition IN ('always','finish','printing','rush')),basis TEXT NOT NULL CHECK(basis IN ('sqm','piece','1000_impressions','meter','hour','flat')),rate_minor INTEGER NOT NULL CHECK(rate_minor>=0),factor_milli INTEGER NOT NULL DEFAULT 1000 CHECK(factor_milli>=0 AND factor_milli<=1000000),waste_bps INTEGER NOT NULL DEFAULT 0 CHECK(waste_bps>=0 AND waste_bps<=5000),effective_from TEXT NOT NULL,active INTEGER NOT NULL DEFAULT 1,updated_by TEXT NOT NULL,updated_at TEXT NOT NULL);
+ CREATE INDEX IF NOT EXISTS idx_pricing_components_active ON pricing_cost_components(active,effective_from,scope,category_id,material_id);
+ CREATE UNIQUE INDEX IF NOT EXISTS idx_pricing_component_version ON pricing_cost_components(code,scope,IFNULL(category_id,''),IFNULL(material_id,''),IFNULL(option_id,''),condition,effective_from);
  CREATE TABLE IF NOT EXISTS cms_pages(id TEXT PRIMARY KEY,slug TEXT NOT NULL UNIQUE,title TEXT NOT NULL,body TEXT NOT NULL,meta_title TEXT NOT NULL DEFAULT '',meta_description TEXT NOT NULL DEFAULT '',published INTEGER NOT NULL DEFAULT 0,updated_by TEXT NOT NULL,updated_at TEXT NOT NULL);
  CREATE TABLE IF NOT EXISTS site_content(content_key TEXT PRIMARY KEY,value TEXT NOT NULL,updated_at TEXT NOT NULL);
  CREATE TABLE IF NOT EXISTS media_assets(id TEXT PRIMARY KEY,name TEXT NOT NULL,url TEXT NOT NULL,alt_text TEXT NOT NULL DEFAULT '',created_by TEXT NOT NULL,created_at TEXT NOT NULL,data_url TEXT,mime_type TEXT,size_bytes INTEGER NOT NULL DEFAULT 0);
@@ -48,7 +51,7 @@ export function publicCatalog(db){
  const products=rows(db,'SELECT p.id,p.category_id,p.name,p.slug,p.description,p.sku,p.image_url,p.specifications FROM catalog_products p JOIN catalog_categories c ON c.id=p.category_id WHERE p.active=1 AND c.active=1 ORDER BY p.sort_order,p.name').map(p=>({...p,specifications:JSON.parse(p.specifications)}));
  return {categories,products,materials:MATERIALS,finishes:FINISHES,kitItems:KIT_ITEMS};
 }
-export function getRateCard(db){const out={};for(const r of rows(db,'SELECT p.* FROM pricing_rate_cards p JOIN (SELECT category_id,MAX(effective_from) effective_from FROM pricing_rate_cards WHERE active=1 AND effective_from<=? GROUP BY category_id) latest ON latest.category_id=p.category_id AND latest.effective_from=p.effective_from',now()))out[r.category_id]={baseUnitMinor:r.base_unit_minor,setupMinor:r.setup_minor,marginBps:r.margin_bps,gstBps:r.gst_bps,discountBps:r.discount_bps,discountMinQty:r.discount_min_qty};return out;}
+export function getRateCard(db){const out={};for(const r of rows(db,'SELECT p.* FROM pricing_rate_cards p JOIN (SELECT category_id,MAX(effective_from) effective_from FROM pricing_rate_cards WHERE active=1 AND effective_from<=? GROUP BY category_id) latest ON latest.category_id=p.category_id AND latest.effective_from=p.effective_from',now()))out[r.category_id]={baseUnitMinor:r.base_unit_minor,setupMinor:r.setup_minor,marginBps:r.margin_bps,gstBps:r.gst_bps,discountBps:r.discount_bps,discountMinQty:r.discount_min_qty};out._components=rows(db,`SELECT c.* FROM pricing_cost_components c JOIN (SELECT code,scope,COALESCE(category_id,'' ) category_key,COALESCE(material_id,'') material_key,COALESCE(option_id,'') option_key,condition,MAX(effective_from) effective_from FROM pricing_cost_components WHERE active=1 AND effective_from<=? GROUP BY code,scope,category_key,material_key,option_key,condition) latest ON latest.code=c.code AND latest.scope=c.scope AND latest.category_key=COALESCE(c.category_id,'') AND latest.material_key=COALESCE(c.material_id,'') AND latest.option_key=COALESCE(c.option_id,'') AND latest.condition=c.condition AND latest.effective_from=c.effective_from WHERE c.active=1`,now());return out;}
 export async function handleAdminApi({db,req,res,pathname}){
  if(pathname==='/api/v1/site-content'&&req.method==='GET'){
   return send(res,200,{content:Object.fromEntries(rows(db,'SELECT content_key,value FROM site_content').map(x=>[x.content_key,x.value])),pages:rows(db,'SELECT slug,title,body,meta_title,meta_description FROM cms_pages WHERE published=1 ORDER BY title')});
@@ -58,7 +61,7 @@ export async function handleAdminApi({db,req,res,pathname}){
  if(!pathname.startsWith(root))return false;
  const actor=requireActor(db,req,'catalog','view',{csrf:req.method!=='GET'});
  const parts=pathname.slice(root.length).split('/').filter(Boolean),resource=parts[0]||'overview',id=parts[1];
- const grants={overview:'reports',categories:'catalog',products:'catalog',pages:'settings',content:'settings',rates:'pricing',media:'catalog',settings:'settings'};
+ const grants={overview:'reports',categories:'catalog',products:'catalog',pages:'settings',content:'settings',rates:'pricing','cost-components':'pricing',media:'catalog',settings:'settings'};
  const permission=grants[resource];if(!permission)throw fail(404,'Management resource not found');
  const action=req.method==='GET'?'view':req.method==='POST'?'create':req.method==='DELETE'?'delete':'edit';
  const allowedActor=requireActor(db,req,permission,action,{csrf:req.method!=='GET'});
@@ -87,6 +90,34 @@ export async function handleAdminApi({db,req,res,pathname}){
    audit(db,actor.id,'catalog.product.'+(req.method==='POST'?'created':'updated'),'product',key);return send(res,req.method==='POST'?201:200,{id:key});
   }
   if(req.method==='DELETE'){if(!id)throw fail(400,'Product ID required');db.prepare('UPDATE catalog_products SET active=0,updated_at=? WHERE id=?').run(now(),id);audit(db,actor.id,'catalog.product.archived','product',id);return send(res,200,{id,archived:true});}
+ }
+ if(resource==='cost-components'){
+  if(req.method==='GET')return send(res,200,{components:rows(db,'SELECT * FROM pricing_cost_components ORDER BY scope,label,effective_from DESC')});
+  if(req.method==='POST'||req.method==='PUT'){
+   const x=await read(req),key=id||newId('cost'),scope=text(x.scope,'Cost scope',20),condition=text(x.condition||'always','Cost condition',20),basis=text(x.basis,'Cost basis',30);
+   if(!['material','kit','production','packing','overhead','shipping'].includes(scope))throw fail(400,'Choose a supported cost scope');
+   if(!['always','finish','printing','rush'].includes(condition))throw fail(400,'Choose a supported cost condition');
+   if(!['sqm','piece','1000_impressions','meter','hour','kg','carton','destination','flat'].includes(basis))throw fail(400,'Choose a supported cost basis');
+   const categoryId=x.categoryId?text(x.categoryId,'Category',80):null,materialId=x.materialId?text(x.materialId,'Material',40):null,optionId=x.optionId?text(x.optionId,'Option',60):null;
+   if(categoryId&&!db.prepare('SELECT id FROM catalog_categories WHERE id=?').get(categoryId))throw fail(400,'Unknown category');
+   if(['material','kit'].includes(scope)&&!materialId)throw fail(400,'Select the raw material or kit item for this cost');
+   if(scope==='material'&&!Object.hasOwn(MATERIALS,materialId))throw fail(400,'Choose a supported raw material');
+   if(scope==='kit'&&!Object.hasOwn(KIT_ITEMS,materialId))throw fail(400,'Choose a supported kit item');
+   if(condition==='finish'&&!optionId)throw fail(400,'Select the finish this cost applies to');
+   if(condition==='finish'&&!Object.hasOwn(FINISHES,optionId))throw fail(400,'Choose a supported finish ID');
+   if(condition!=='finish'&&optionId)throw fail(400,'Option ID is only used for finish-specific costs');
+   const code=slug(x.code||x.label),label=text(x.label,'Cost label',120),rate=int(x.rateMinor,'Rate',0,10000000000),factor=int(x.factorMilli??1000,'Consumption factor (milli-units)',1,1000000),waste=int(x.wasteBps??0,'Wastage',0,5000),effective=text(x.effectiveFrom||now().slice(0,10),'Effective date',40);
+   if(effective.length!==10||effective[4]!=='-'||effective[7]!=='-'||Number.isNaN(Date.parse(effective)))throw fail(400,'Effective date must use YYYY-MM-DD');
+   const existing=req.method==='POST'?db.prepare("SELECT id FROM pricing_cost_components WHERE code=? AND scope=? AND IFNULL(category_id,'')=IFNULL(?,'') AND IFNULL(material_id,'')=IFNULL(?,'') AND IFNULL(option_id,'')=IFNULL(?,'') AND condition=? AND effective_from=?").get(code,scope,categoryId,materialId,optionId,condition,effective):null;
+   const saveId=existing?.id||key;
+   if(req.method==='PUT'&&!db.prepare('SELECT id FROM pricing_cost_components WHERE id=?').get(key))throw fail(404,'Cost component not found');
+   const values=[code,label,scope,categoryId,materialId,optionId,condition,basis,rate,factor,waste,effective,actor.id,now()];
+   if(req.method==='POST'&&existing)db.prepare('UPDATE pricing_cost_components SET code=?,label=?,scope=?,category_id=?,material_id=?,option_id=?,condition=?,basis=?,rate_minor=?,factor_milli=?,waste_bps=?,effective_from=?,active=1,updated_by=?,updated_at=? WHERE id=?').run(...values,saveId);
+   else if(req.method==='POST')db.prepare('INSERT INTO pricing_cost_components(id,code,label,scope,category_id,material_id,option_id,condition,basis,rate_minor,factor_milli,waste_bps,effective_from,active,updated_by,updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,1,?,?)').run(saveId,...values);
+   else db.prepare('UPDATE pricing_cost_components SET code=?,label=?,scope=?,category_id=?,material_id=?,option_id=?,condition=?,basis=?,rate_minor=?,factor_milli=?,waste_bps=?,effective_from=?,active=1,updated_by=?,updated_at=? WHERE id=?').run(...values,key);
+   audit(db,actor.id,'pricing.cost_component.saved','pricing_cost_component',saveId,{code,scope,basis,rateMinor:rate,effectiveFrom:effective});return send(res,req.method==='POST'?201:200,{id:saveId});
+  }
+  if(req.method==='DELETE'){if(!id)throw fail(400,'Cost component ID required');const item=db.prepare('SELECT id FROM pricing_cost_components WHERE id=?').get(id);if(!item)throw fail(404,'Cost component not found');db.prepare('UPDATE pricing_cost_components SET active=0,updated_by=?,updated_at=? WHERE id=?').run(actor.id,now(),id);audit(db,actor.id,'pricing.cost_component.archived','pricing_cost_component',id);return send(res,200,{id,archived:true});}
  }
  if(resource==='rates'){
   if(req.method==='GET')return send(res,200,{rates:rows(db,'SELECT * FROM pricing_rate_cards ORDER BY category_id')});

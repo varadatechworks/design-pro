@@ -105,33 +105,79 @@ export function estimate(input,rateCard={},catalog=CATEGORIES){
  const printSides=integer(input.printSides??1,1,2,'Print sides');
  const designComplexity=integer(input.designComplexity??1,1,4,'Design complexity');
  const unitsPerCarton=integer(input.unitsPerCarton??25,1,500,'Units per carton');
- const activeRate=rateCard[category.id]||rateCard;
+ const activeRate={...rateCard,...(rateCard[category.id]||{})};
  const baseUnit=integer(activeRate.baseUnitMinor??category.base,0,10000000,'Unit rate');
  const fixedSetup=integer(activeRate.setupMinor??category.setup,0,100000000,'Setup rate');
  const areaRatio=Math.max(0.3,Math.min(14,(length*width)/(240*180)));
  const geometryMultiplierBps=Math.round(areaRatio*10000);
- const unitMaterial=money(money(baseUnit,MATERIALS[material].factorBps),geometryMultiplierBps);
- const unitFinished=money(unitMaterial,FINISHES[finish].factorBps);
  const selected=input.kitItems??{};
  if(!selected||typeof selected!=='object'||Array.isArray(selected))throw new Error('Kit contents must be an object');
  for(const [id,enabled] of Object.entries(selected)){if(!Object.hasOwn(KIT_ITEMS,id)||typeof enabled!=='boolean')throw new Error('Invalid kit content selection');}
- const itemCost=category.kind==='kit'?Object.entries(selected).reduce((acc,[id,on])=>acc+(on?KIT_ITEMS[id].costMinor:0),0):0;
- const unitProcessing=Math.round(baseUnit*(printSides===2?0.16:0.08)*designComplexity);
- const unitBase=sum([unitFinished,unitProcessing,itemCost]);
- const rawMaterial=sum([money(unitFinished*quantity,10000),money(unitProcessing*quantity,10000),itemCost*quantity]);
- const scrap=money(rawMaterial,quantity>=500?300:700); // 3–7% illustrative spoilage
- const setup=sum([fixedSetup,money(fixedSetup,(designComplexity-1)*1500)]);
- const assembly=category.kind==='kit'?quantity*2200:category.kind==='box'?quantity*900:0;
- const rush=Boolean(input.rush)?money(sum([rawMaterial,scrap,setup,assembly]),2000):0;
+ let itemCost=category.kind==='kit'?Object.entries(selected).reduce((acc,[id,on])=>acc+(on?KIT_ITEMS[id].costMinor:0),0):0;
  const destinationState=String(input.destinationState||'KA').toUpperCase();
  if(!/^[A-Z]{2}$/.test(destinationState))throw new Error('Invalid destination state code');
  const cartons=Math.ceil(quantity/unitsPerCarton);
  const perPieceKg=Math.max(0.05,(length*width*height)/5_000_000);
- const chargeableKg=Math.ceil(Math.max(perPieceKg*quantity, (length*width*height)/(5_000_000)*quantity)*100)/100;
+ const chargeableKg=Math.ceil(Math.max(perPieceKg*quantity,(length*width*height)/5_000_000*quantity)*100)/100;
  const destinationCount=integer(input.destinationCount??1,1,1000,'Destination count');
  if(destinationCount>quantity)throw new Error('Destination count cannot exceed order quantity');
- const shipping = input.shipping === false?0:sum([cartons*3500,Math.ceil(chargeableKg)*1800,(destinationCount-1)*9000]);
- const costBase=sum([rawMaterial,scrap,setup,assembly,rush,shipping]);
+ const components=Array.isArray(rateCard._components)?rateCard._components:[];
+ const applicable=components.filter(c=>(!c.category_id||c.category_id===category.id)&&
+  (c.scope!=='material'||c.material_id===material)&&(c.scope!=='kit'||selected[c.material_id]===true)&&
+  (c.condition==='always'||(c.condition==='finish'&&c.option_id===finish)||(c.condition==='printing'&&printSides>0)||(c.condition==='rush'&&Boolean(input.rush)))&&!(c.scope==='shipping'&&input.shipping===false));
+ const hasConfiguredMaterial=applicable.some(c=>c.scope==='material');
+ if(applicable.some(c=>c.scope==='kit'))itemCost=Object.entries(selected).reduce((acc,[id,on])=>acc+(on&&!applicable.some(c=>c.scope==='kit'&&c.material_id===id)?KIT_ITEMS[id].costMinor:0),0);
+ const componentModel=hasConfiguredMaterial&&components.length>0;
+ let rawMaterial=0,scrap=0,setup=0,assembly=0,rush=0,shipping=0,processing=0,overhead=0;
+ const componentLines=[];
+ if(componentModel){
+  const surfaceAreaM2=2*(length*width+length*height+width*height)/1_000_000;
+  const cutLengthM=2*(length+width+height)/1000;
+  for(const c of applicable){
+   const basis=c.basis;
+   let units=0;
+   if(basis==='sqm')units=surfaceAreaM2*quantity*(c.condition==='printing'?printSides:1);
+   else if(basis==='piece')units=quantity;
+   else if(basis==='1000_impressions')units=quantity*printSides/1000;
+   else if(basis==='meter')units=cutLengthM*quantity;
+   else if(basis==='hour')units=quantity*(c.factor_milli??1000)/1000;
+   else if(basis==='kg')units=chargeableKg;
+   else if(basis==='carton')units=cartons;
+   else if(basis==='destination')units=destinationCount;
+   else if(basis==='flat')units=1;
+   const factor=(basis==='hour'?1:(c.factor_milli??1000)/1000);
+   const baseCost=Math.round(units*factor*c.rate_minor);
+   const wasteCost=Math.round(baseCost*(c.waste_bps??0)/10000);
+   const amount=baseCost+wasteCost;
+   if(!Number.isSafeInteger(amount)||amount<0)throw new Error('Production cost overflow');
+   if(!amount)continue;
+   if(c.scope==='material')rawMaterial+=baseCost;
+   else if(c.scope==='production'&&c.code==='setup')setup+=baseCost;
+   else if(c.scope==='production')processing+=baseCost;
+   else if(c.scope==='packing'||c.scope==='kit')assembly+=baseCost;
+   else if(c.scope==='overhead')overhead+=baseCost;
+   else if(c.scope==='shipping')shipping+=baseCost;
+   scrap+=wasteCost;
+   componentLines.push(line('component-'+c.id,c.label+(wasteCost?' (incl. wastage)':''),amount));
+  }
+  if(!applicable.some(c=>c.scope==='production'&&c.code==='setup'))setup=fixedSetup;
+  if(itemCost)assembly+=itemCost*quantity;
+  if(input.shipping===false)shipping=0;
+  if(input.rush&&!applicable.some(c=>c.condition==='rush'))rush=money(sum([rawMaterial,processing,setup,assembly,scrap]),2000);
+ }else{
+  const unitMaterial=money(money(baseUnit,MATERIALS[material].factorBps),Math.round(Math.max(0.3,Math.min(14,(length*width)/(240*180)))*10000));
+  const unitFinished=money(unitMaterial,FINISHES[finish].factorBps);
+  const unitProcessing=Math.round(baseUnit*(printSides===2?0.16:0.08)*designComplexity);
+  const unitBase=sum([unitFinished,unitProcessing,itemCost]);
+  const rawMaterialLegacy=sum([money(unitFinished*quantity,10000),money(unitProcessing*quantity,10000),itemCost*quantity]);
+  rawMaterial=rawMaterialLegacy;
+  scrap=money(rawMaterial,quantity>=500?300:700);
+  setup=sum([fixedSetup,money(fixedSetup,(designComplexity-1)*1500)]);
+  assembly=category.kind==='kit'?quantity*2200:category.kind==='box'?quantity*900:0;
+  rush=Boolean(input.rush)?money(sum([rawMaterial,scrap,setup,assembly]),2000):0;
+  shipping=input.shipping===false?0:sum([cartons*3500,Math.ceil(chargeableKg)*1800,(destinationCount-1)*9000]);
+ }
+ const costBase=sum([rawMaterial,processing,scrap,setup,assembly,overhead,rush,shipping]);
  const targetMarginBps=integer(activeRate.marginBps??2500,100,6500,'Margin (basis points)');
  const sellingBeforeDiscount=Number((BigInt(costBase)*10000n+BigInt(10000-targetMarginBps-1))/BigInt(10000-targetMarginBps));
  if(!Number.isSafeInteger(sellingBeforeDiscount))throw new Error('Amount overflow');
@@ -146,13 +192,21 @@ export function estimate(input,rateCard={},catalog=CATEGORIES){
   {component:'SGST',rateBps:gstBps-stateHalf,amountMinor:totalTax-money(taxable,stateHalf)}
  ]:[{component:'IGST',rateBps:gstBps,amountMinor:totalTax}];
  const taxMinor=sum(taxes.map(t=>t.amountMinor));
- const requiresReview = category.kind==='rfq'||length>600||width>600||height>500||quantity>20000||Boolean(input.customerSuppliedMaterial)|| (category.kind==='laser'&&!input.cutPathMm)|| Boolean(input.customDie);
+ const missingCostScopes=componentModel?[
+  ...(!applicable.some(c=>c.scope==='production')?['production operation']:[]),
+  ...(printSides>0&&!applicable.some(c=>c.condition==='printing')?['printing']:[]),
+  ...(finish!=='none'&&!applicable.some(c=>c.condition==='finish'&&c.option_id===finish)?['selected finish']:[]),
+  ...(input.shipping!==false&&!applicable.some(c=>c.scope==='shipping')?['shipping']:[]),
+  ...(category.kind==='kit'&&Object.entries(selected).some(([id,on])=>on&&!applicable.some(c=>c.scope==='kit'&&c.material_id===id))?['kit item']:[])
+ ]:[];
+ const requiresReview = category.kind==='rfq'||length>600||width>600||height>500||quantity>20000||Boolean(input.customerSuppliedMaterial)|| (category.kind==='laser'&&!input.cutPathMm)|| Boolean(input.customDie)||missingCostScopes.length>0;
  const warnings=[];
  if(category.kind==='rfq')warnings.push('Custom engineering requires an expert quotation.');
  if(category.kind==='laser'&&!input.cutPathMm)warnings.push('Laser route pricing requires verified path length and material safety review.');
+ if(missingCostScopes.length)warnings.push('Admin cost configuration is incomplete for: '+missingCostScopes.join(', ')+'. The estimate is provisional until these rates are configured and reviewed.');
  if(requiresReview)warnings.push('A technical reviewer must confirm material fit, production method and final price.');
- warnings.push('Indicative estimate using sample factory rates. Preview is not a production proof.');
- const breakdown=[line('materials','Material, print and contents',rawMaterial),line('spoilage','Production wastage allowance',scrap),line('setup','Prepress, tooling and setup',setup),line('assembly','Assembly and kitting',assembly),line('rush','Priority production',rush),line('shipping','Indicative freight & handling',shipping)];if(discountMinor)breakdown.push(line('discount','Volume discount',-discountMinor));
+ if(componentModel)warnings.push('Calculated using the active Admin production cost components. Confirm the technical dieline and factory routing before accepting a firm order.');else warnings.push('Indicative estimate uses sample fallback factory rates because no active raw-material cost is configured for the selected material.');
+ const breakdown=componentModel?[...componentLines,...(setup?[line('setup','Category setup charge',setup)]:[]),...(itemCost?[line('kit-items','Selected kit contents',itemCost*quantity)]:[])]:[line('materials','Material, print and contents',rawMaterial),line('spoilage','Production wastage allowance',scrap),line('setup','Prepress, tooling and setup',setup),line('assembly','Assembly and kitting',assembly),line('rush','Priority production',rush),line('shipping','Indicative freight & handling',shipping)];if(!componentModel&&processing)breakdown.push(line('processing','Production operations',processing));if(discountMinor)breakdown.push(line('discount','Volume discount',-discountMinor));
  const payload={categoryId:category.id,quantity,length,width,height,material,finish,printSides,designComplexity,destinationState,rush:Boolean(input.rush),shipping:input.shipping!==false,unitsPerCarton,destinationCount,kitItems:selected,designNotes:String(input.designNotes||'').slice(0,1000)};
  const designStudio=normalizeDesignStudio(input.designStudio);if(designStudio)payload.designStudio=designStudio;
  return {config:payload,categoryName:category.name,kind:category.kind,currency:'INR',quantity,breakdown,costMinor:costBase,netMinor:taxable,taxMinor,totalMinor:sum([taxable,taxMinor]),unitInclTaxMinor:Math.round((taxable+taxMinor)/quantity),taxes,marginBps:targetMarginBps,discountBps,discountMinor,chargeableKg,cartons,leadDays:category.days+(rush?-1:0),status:requiresReview?'technical_review':'indicative',confidence:requiresReview?'technical_review':'indicative',warnings,validUntil:new Date(Date.now()+7*86400000).toISOString()};

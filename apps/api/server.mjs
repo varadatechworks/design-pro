@@ -153,7 +153,7 @@ export function createServer(db=migrate(openDb())){
   if(pathname==='/api/v1/auth/logout'&&req.method==='POST'){csrfCheck(db,req);clearSession(db,req);res.setHeader('Set-Cookie',sessionCookie('',{secure:PROD})+'; Max-Age=0');return safeJson(res,200,{ok:true});}
 
   if(pathname==='/api/v1/quotes'&&req.method==='POST'){
-   const actor=requireActor(db,req,'quotes','create');const input=await body(req),result=estimate(input);
+   const actor=requireActor(db,req,'quotes','create');const input=await body(req),result=estimate(input,getRateCard(db),publicCatalog(db).categories);
    const id=newId('qte'),t=now();db.prepare('INSERT INTO quotes (id,user_id,organization_id,status,configuration,estimate,expires_at,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?,?)')
     .run(id,actor.id,actor.organization_id,result.status,JSON.stringify(result.config),JSON.stringify(result),result.validUntil,t,t);
    audit(db,actor.id,'quote.created','quote',id,{totalMinor:result.totalMinor,status:result.status});return safeJson(res,201,{id,...result});
