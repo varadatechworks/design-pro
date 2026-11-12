@@ -122,12 +122,15 @@ function serveCmsPage(db,res,slug){
  res.writeHead(200,{'Content-Type':'text/html; charset=utf-8','Cache-Control':'no-store','X-Content-Type-Options':'nosniff','Content-Security-Policy':"default-src 'self'; style-src 'unsafe-inline'; base-uri 'none'; object-src 'none'; frame-ancestors 'none'"});
  res.end(html);return true;
 }
-\nexport function createServer(db=migrate(openDb())){
+
+export function createServer(db=migrate(openDb())){
  migrateAdmin(db);
  const rate=new Map();
  async function handler(req,res){let pathname;try{
   const url=new URL(req.url||'/',`http://${req.headers.host||'localhost'}`);pathname=url.pathname;
-  if(req.method==='GET'&&pathname.startsWith('/api/v1/media/')){if(serveManagedMedia(db,res,pathname.slice('/api/v1/media/'.length)))return;throw httpError(404,'Media asset not found');}\n  if(req.method==='GET'&&pathname.startsWith('/pages/')){if(serveCmsPage(db,res,decodeURIComponent(pathname.slice('/pages/'.length))))return;throw httpError(404,'Page not found');}\n  if(req.method==='GET'&&respondStatic(req,res,pathname))return;
+  if(req.method==='GET'&&pathname.startsWith('/api/v1/media/')){if(serveManagedMedia(db,res,pathname.slice('/api/v1/media/'.length)))return;throw httpError(404,'Media asset not found');}
+  if(req.method==='GET'&&pathname.startsWith('/pages/')){if(serveCmsPage(db,res,decodeURIComponent(pathname.slice('/pages/'.length))))return;throw httpError(404,'Page not found');}
+  if(req.method==='GET'&&respondStatic(req,res,pathname))return;
   if(await handleAdminApi({db,req,res,pathname}))return;
   if(pathname==='/api/v1/health')return safeJson(res,200,{status:'ok',application:'DesignPro',paymentsEnabled:process.env.PAYMENTS_ENABLED==='true',uatDemoEnabled:!PROD&&process.env.UAT_DEMO_ENABLED==='true',aiProvider:process.env.AI_PROVIDER==='ollama'?'ollama':'disabled'});
   if(pathname==='/api/v1/catalog'&&req.method==='GET')return safeJson(res,200,publicCatalog(db));
