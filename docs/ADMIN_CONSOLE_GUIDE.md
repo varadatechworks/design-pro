@@ -15,7 +15,7 @@
 - **Products** appear in the storefront's Featured Products area. Select an active category, maintain a unique URL slug and optionally associate a hosted or DesignPro media image.
 - **Media library** accepts PNG/JPEG/WebP uploads up to 2 MB or HTTPS URLs. Uploaded images are currently stored in SQLite as base64 data for local/UAT convenience.
 - **Pricing & rates** controls category-level setup, target margin, GST and volume discount with effective dates. All money values are stored as integer paise.
-- **Production costs** maintains effective-dated raw-material, kit-item, production-operation, packing and shipping costs. Each component has a consumption basis (m², piece, 1,000 impressions, running metre, production hour, kg, carton, delivery destination or fixed charge), a consumption factor, optional wastage and optional category/material/finish conditions. The calculator uses dimensions and quantity to derive consumption; the latest active effective component rates are applied to new estimates.
+- **Production costs** maintains effective-dated raw-material, kit-item, production-operation, packing, factory-overhead and shipping costs. Each component has a consumption basis (m², piece, 1,000 impressions, running metre, production hour, kg, carton, delivery destination or fixed charge), a consumption factor, optional wastage and optional category/material/finish conditions. The calculator uses dimensions and quantity to derive consumption; the latest active effective component rates are applied to new estimates.
 - **Business settings** stores business identity, contact, GSTIN, address, currency and fulfilment defaults.
 
 ## Pricing safety
