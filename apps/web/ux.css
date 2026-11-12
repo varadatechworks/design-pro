@@ -346,3 +346,38 @@ button{cursor:pointer}
 .product-tile>b{margin-left:auto;color:#b47757}
 @media(max-width:850px){.product-catalog-list{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media(max-width:540px){.product-catalog-list{grid-template-columns:1fr}.product-catalog-heading{align-items:flex-start;flex-direction:column}}
+
+
+/* Refined motion system: restrained, accessible interactions across the storefront. */
+:root{--motion-ease:cubic-bezier(.2,.75,.25,1);--motion-duration:420ms}
+.process-grid article{position:relative;isolation:isolate;overflow:hidden;transform:translateY(0);transition:transform var(--motion-duration) var(--motion-ease),box-shadow var(--motion-duration) var(--motion-ease),border-color var(--motion-duration) var(--motion-ease),background-color var(--motion-duration) var(--motion-ease)}
+.process-grid article::before{content:"";position:absolute;inset:0;z-index:-1;opacity:0;background:radial-gradient(circle at 18% 12%,rgba(211,159,119,.17),transparent 58%);transition:opacity 420ms ease}
+.process-grid article:hover,.process-grid article:focus-within{transform:translateY(-8px);box-shadow:0 22px 48px rgba(24,35,34,.11)}
+.process-grid article:hover::before,.process-grid article:focus-within::before{opacity:1}
+.process-grid .step-icon{display:grid;place-items:center;transform:translateY(0) rotate(0) scale(1);transform-origin:center;transition:transform 560ms var(--motion-ease),color 360ms ease,filter 360ms ease}
+.process-grid article:hover .step-icon,.process-grid article:focus-within .step-icon{transform:translateY(-3px) rotate(12deg) scale(1.22);filter:drop-shadow(0 7px 9px rgba(184,112,81,.2))}
+.process-grid .step-number{transition:color 360ms ease,transform 420ms var(--motion-ease)}
+.process-grid article:hover .step-number,.process-grid article:focus-within .step-number{color:var(--console-accent,#b87051);transform:translateX(4px)}
+.process-grid article h3,.process-grid article p{transition:transform 420ms var(--motion-ease),color 320ms ease}
+.process-grid article:hover h3,.process-grid article:focus-within h3{transform:translateX(3px)}
+.category-card,.product-tile,.business-illustration,.hero-box,.floater,.studio-shell,.estimate-panel{transition:transform 420ms var(--motion-ease),box-shadow 420ms var(--motion-ease),filter 420ms ease}
+.category-card:hover,.category-card:focus-visible{transform:translateY(-6px);box-shadow:0 18px 38px rgba(25,35,33,.12)}
+.category-card .product-illustration{transform:translateY(0) scale(1);transition:transform 600ms var(--motion-ease)}
+.category-card:hover .product-illustration,.category-card:focus-visible .product-illustration{transform:translateY(-4px) scale(1.045)}
+.product-tile:hover,.product-tile:focus-visible{transform:translateY(-3px);box-shadow:0 12px 28px rgba(25,35,33,.09)}
+.hero-box{transform-origin:50% 75%}
+.hero-art:hover .hero-box{transform:translateY(-5px) rotate(-1.5deg)}
+.hero-art .floater{transition:transform 500ms var(--motion-ease)}
+.hero-art:hover .floater-top{transform:translateY(-5px) rotate(-2deg)}
+.hero-art:hover .floater-bottom{transform:translateY(5px) rotate(1deg)}
+.studio-shell:hover{box-shadow:0 24px 60px rgba(15,25,26,.12)}
+.estimate-panel:hover{transform:translateY(-3px);box-shadow:0 18px 42px rgba(15,25,26,.09)}
+.business-illustration:hover .b-box{transform:translateY(-7px) rotate(-2deg)}
+.business-illustration .b-box{transition:transform 500ms var(--motion-ease)}
+.business-illustration:hover .b-card-one{transform:translate(-5px,-7px) rotate(-5deg)}
+.business-illustration:hover .b-card-two{transform:translate(5px,-8px) rotate(4deg)}
+.business-illustration .b-card{transition:transform 500ms var(--motion-ease)}
+@media(prefers-reduced-motion:reduce){
+ html{scroll-behavior:auto}
+ *,*::before,*::after{animation-duration:.01ms!important;animation-iteration-count:1!important;transition-duration:.01ms!important;scroll-behavior:auto!important}
+}
