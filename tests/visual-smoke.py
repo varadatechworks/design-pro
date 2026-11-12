@@ -92,7 +92,7 @@ def page_setup(browser,viewport,role):
  assert page.locator('.face.back .face-custom-text').inner_text()=='Made for you'
  assert page.locator('.face.back .face-custom-text').evaluate("(el)=>el.style.fontStyle")=='italic'
  assert page.locator('.face.back .face-custom-text').evaluate("(el)=>el.style.fontWeight")=='800'
- assert page.locator('.face.back .face-custom-text').evaluate("(el)=>el.style.color")=='rgb(255, 255, 255)'
+ assert page.locator('.face.back .face-custom-text').evaluate("(el)=>el.style.color")=='rgb(255, 255, 255)'\n assert int(page.locator('#faceFontSize').input_value())==int(float(text_font_after.replace('px','')))
  page.locator('#productCube').evaluate("el=>el.style.transform='rotateX(0deg) rotateY(180deg)'")
  text_frame=page.locator('.face.back .face-text-frame')
  assert text_frame.count()==1,'Side text should be rendered as a selectable canvas object'
