@@ -20,3 +20,12 @@
  .studio-shell{grid-template-columns:minmax(235px,.85fr) minmax(340px,1.15fr)}
  .estimate-panel{grid-column:1/-1;display:block}
 }
+
+/* Guest preview: keep the complete three-pane studio visible, while protecting artwork creation tools. */
+.left-studio-tools{position:relative;}
+.guest-design-locked #designStudioControls,.guest-design-locked .left-shape-card,.guest-design-locked .left-studio-details{opacity:.42;filter:grayscale(.25);pointer-events:none;user-select:none;}
+.guest-studio-lock{position:absolute;z-index:5;inset:12px 10px 12px;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:22px 18px;background:rgba(255,253,249,.94);border:1px solid #e7d8cc;box-shadow:0 12px 35px #17131b18;backdrop-filter:blur(7px);}
+.guest-lock-icon{width:42px;height:42px;border-radius:50%;display:grid;place-items:center;background:#f7e8df;color:#d96f3e;font-size:22px;margin-bottom:13px;}
+.guest-studio-lock strong{font-family:var(--serif);font-size:22px;font-weight:500;color:#24232d;}
+.guest-studio-lock p{max-width:280px;color:#6d6670;font-size:12px;line-height:1.7;margin:10px 0 18px;}
+.guest-studio-lock .primary-button{font-size:11px;padding:13px 18px;}
