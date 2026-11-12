@@ -222,7 +222,7 @@ function initStudioEnhancements(){
      '<label class="designer-label" for="faceColorInput">Side background colour<input id="faceColorInput" class="face-color-input" type="color" value="#373327"></label>'+
      '<label class="designer-label" for="faceFontColor">Text colour<input id="faceFontColor" class="face-color-input" type="color" value="#F4E6CF"></label>'+
     '</div>'+
-    '<label class="designer-label" for="faceTextInput">Text on this side</label><textarea id="faceTextInput" class="field" rows="2" maxlength="120" placeholder="Add a message for this side"></textarea>'+
+    '<label class="designer-label" for="faceTextInput">Text on this side</label><textarea id="faceTextInput" class="field" rows="2" maxlength="120" placeholder="Add a message for this side"></textarea><p class="designer-help">Enter your text, then drag its box on the preview. Use the corner handle to resize it.</p>'+
     '<div class="face-typography-grid">'+
      '<label class="designer-label" for="faceFontFamily">Font family<select id="faceFontFamily" class="field"><option value="serif">Elegant serif</option><option value="sans">Modern sans</option><option value="display">Bold display</option><option value="mono">Monospace</option></select></label>'+
      '<label class="designer-label" for="faceFontStyle">Font style<select id="faceFontStyle" class="field"><option value="normal">Regular</option><option value="italic">Italic</option></select></label>'+
