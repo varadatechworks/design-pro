@@ -28,6 +28,16 @@ export function migrateAdmin(db){
  CREATE INDEX IF NOT EXISTS idx_products_category ON catalog_products(category_id,active,sort_order);
  CREATE INDEX IF NOT EXISTS idx_pages_published ON cms_pages(published,slug);
  `);
+ // Additive compatibility for databases created by an earlier admin-console preview.
+ const mediaCols=db.prepare('PRAGMA table_info(media_assets)').all().map(c=>c.name);
+ if(!mediaCols.includes('data_url'))db.exec('ALTER TABLE media_assets ADD COLUMN data_url TEXT');
+ if(!mediaCols.includes('mime_type'))db.exec('ALTER TABLE media_assets ADD COLUMN mime_type TEXT');
+ if(!mediaCols.includes('size_bytes'))db.exec('ALTER TABLE media_assets ADD COLUMN size_bytes INTEGER NOT NULL DEFAULT 0');
+ const rateIndexes=db.prepare("PRAGMA index_list('pricing_rate_cards')").all().filter(x=>x.unique);
+ for(const idx of rateIndexes){const cols=db.prepare('PRAGMA index_info('+JSON.stringify(idx.name)+')').all().map(c=>c.name);if(cols.length===1&&cols[0]==='category_id'){
+  db.exec("ALTER TABLE pricing_rate_cards RENAME TO pricing_rate_cards_legacy; CREATE TABLE pricing_rate_cards(id TEXT PRIMARY KEY,category_id TEXT NOT NULL REFERENCES catalog_categories(id),base_unit_minor INTEGER NOT NULL,setup_minor INTEGER NOT NULL,margin_bps INTEGER NOT NULL DEFAULT 2500,gst_bps INTEGER NOT NULL DEFAULT 1800,effective_from TEXT NOT NULL,active INTEGER NOT NULL DEFAULT 1,updated_by TEXT NOT NULL,updated_at TEXT NOT NULL,UNIQUE(category_id,effective_from)); INSERT INTO pricing_rate_cards SELECT * FROM pricing_rate_cards_legacy; DROP TABLE pricing_rate_cards_legacy;");
+  break;
+ }}
  seed(db);return db;
 }
 export function publicCatalog(db){
