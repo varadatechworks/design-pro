@@ -73,3 +73,25 @@ If Ollama is not configured or running, concept generation returns a clear servi
 - End-to-end proof approval using the exact uploaded production file.
 
 The DesignPro release gates remain authoritative. This enhancement does not change the DEVELOPMENT / UAT ONLY release status.
+
+
+## Enhanced design studio workspace — 12 November 2026
+
+The design studio now places editing controls in the left configuration pane and keeps the centre column focused on the live 3D concept preview. The left pane contains side selection, side styling, shape controls, typography, artwork import, optional local AI and preview/alignment controls in collapsible sections.
+
+### Text layers
+- Each of the six sides supports up to eight independent text layers.
+- Add, select, duplicate and delete layers; edit copy and per-layer typography.
+- Each layer has independent position and size and can be dragged/resized on its own face.
+- Text layer metadata is validated and stored with a saved estimate. Legacy single-side text remains accepted and is normalised into a first layer.
+
+### Shape presets
+Oval box, round box, hexagon box and pentagon box are available as additional visual concept presets. These CSS 3D previews are illustrative silhouettes, not engineered meshes, dielines or manufacturing-ready geometry. Final CAD and structural feasibility still require factory review.
+
+### Typography and multilingual support
+The font menu includes additional system font stacks and multilingual Noto-family fallbacks. Glyph coverage depends on fonts installed on the user's device. A user may load a TTF, OTF, WOFF or WOFF2 font (maximum 5 MB) for the current browser session. Uploaded font bytes remain local, are not uploaded, and are not embedded in quote records or a production artwork package. To preserve exact typography across devices, a production export pipeline must embed or package licensed font files with explicit user permission and licensing checks.
+
+### Grid
+A left-pane toggle displays or hides an alignment grid on the 3D preview faces. The grid is a preview-only aid and is not included in quote metadata or production artwork.
+
+The design studio remains a concept editor. It does not yet produce print-ready dielines, manufacturing-accurate meshes, or a final colour-managed proof.
