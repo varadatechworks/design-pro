@@ -258,7 +258,26 @@ def run():
    assert pg.locator('#shipmentForm select[name=orderId] option').count()==1
    assert pg.locator('#shipmentDestinationSelect option').count()==1
    pg.locator('[data-tab="orders"]').click()
-   pg.locator('[data-detail="ord_UAT_SAMPLE_00001"]').click()
+   # Switching tabs must immediately remove the previous tab's interactive DOM.
+   # Wait for the Orders page to finish rendering before selecting its order row.
+   try:
+    pg.wait_for_function("""() => {
+     const title=document.querySelector('#portalPageTitle');
+     const detailButton=document.querySelector('#workspaceData [data-detail="ord_UAT_SAMPLE_00001"]');
+     return title?.textContent==='Order operations' && !!detailButton &&
+       !document.querySelector('#workspaceData #shipmentForm');
+    }""",timeout=5000)
+   except Exception as exc:
+    diagnostics=pg.evaluate("""() => ({
+     pageTitle:document.querySelector('#portalPageTitle')?.textContent||null,
+     workspaceText:document.querySelector('#workspaceData')?.innerText||null,
+     orderButton:document.querySelector('#workspaceData [data-detail="ord_UAT_SAMPLE_00001"]')?.outerHTML||null,
+     shipmentForm:!!document.querySelector('#workspaceData #shipmentForm'),
+     requests:window.__requests||[],
+     pageErrors:window.__pageErrors||[]
+    })""")
+    raise AssertionError('Orders tab did not finish rendering before order selection. Browser diagnostics: '+json.dumps(diagnostics,ensure_ascii=False)) from exc
+   pg.locator('#workspaceData [data-detail="ord_UAT_SAMPLE_00001"]').click()
    try:
     pg.wait_for_function("""() => {
      const panel=document.querySelector('#orderDetails .detail-panel');
