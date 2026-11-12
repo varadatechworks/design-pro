@@ -12,7 +12,8 @@ test('admin CMS, catalogue, product, media and effective-dated pricing managemen
   assert.equal((await request(base,'/api/v1/admin/management/categories')).code,401);
   const login=await request(base,'/api/v1/auth/login',{method:'POST',body:{email:'root@designpro.test',password:'Strong Admin Password 123!'}});
   assert.equal(login.code,200);const cookie=login.cookie,csrf=login.body.csrf;
-  assert.equal((await request(base,'/api/v1/admin/management/categories',{method:'POST',cookie,body:{id:'no-csrf',name:'Blocked',kind:'box',materials:['greyboard'],finishes:['matte']}})).code,403);\n  const category=await request(base,'/api/v1/admin/management/categories',{method:'POST',cookie,csrf,body:{id:'test-box',name:'Test Box',tag:'Test category',icon:'box',kind:'box',baseMinor:12500,setupMinor:20000,leadDays:4,materials:['greyboard'],finishes:['matte'],active:true,sortOrder:50}});
+  assert.equal((await request(base,'/api/v1/admin/management/categories',{method:'POST',cookie,body:{id:'no-csrf',name:'Blocked',kind:'box',materials:['greyboard'],finishes:['matte']}})).code,403);
+  const category=await request(base,'/api/v1/admin/management/categories',{method:'POST',cookie,csrf,body:{id:'test-box',name:'Test Box',tag:'Test category',icon:'box',kind:'box',baseMinor:12500,setupMinor:20000,leadDays:4,materials:['greyboard'],finishes:['matte'],active:true,sortOrder:50}});
   assert.equal(category.code,201);
   const product=await request(base,'/api/v1/admin/management/products',{method:'POST',cookie,csrf,body:{categoryId:'test-box',name:'Sample Product',slug:'sample-product',description:'Managed product',sku:'DP-001',imageUrl:'https://example.test/product.png',specifications:{size:'A5'},active:true,sortOrder:1}});
   assert.equal(product.code,201);
@@ -25,10 +26,12 @@ test('admin CMS, catalogue, product, media and effective-dated pricing managemen
   const publicContent=await request(base,'/api/v1/site-content');assert.equal(publicContent.body.content.heroDescription,'Updated storefront message');
   const page=await request(base,'/api/v1/admin/management/pages',{method:'POST',cookie,csrf,body:{slug:'about-test',title:'About DesignPro',body:'A managed content page.',metaTitle:'About',metaDescription:'About us',published:true}});
   assert.equal(page.code,201);
-  const publicPage=await request(base,'/pages/about-test');assert.equal(publicPage.code,200);assert.match(publicPage.body,/A managed content page/);\n  assert.doesNotMatch(publicPage.body,/<script>/i);
+  const publicPage=await request(base,'/pages/about-test');assert.equal(publicPage.code,200);assert.match(publicPage.body,/A managed content page/);
+  assert.doesNotMatch(publicPage.body,/<script>/i);
   const image='data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/p2sAAAAASUVORK5CYII=';
   const media=await request(base,'/api/v1/admin/management/media',{method:'POST',cookie,csrf,body:{name:'Pixel',altText:'One pixel',dataUrl:image}});
-  assert.equal(media.code,201);\n  const invalidMedia=await request(base,'/api/v1/admin/management/media',{method:'POST',cookie,csrf,body:{name:'Fake',dataUrl:'data:image/png;base64,SGVsbG8='}});assert.equal(invalidMedia.code,400);
+  assert.equal(media.code,201);
+  const invalidMedia=await request(base,'/api/v1/admin/management/media',{method:'POST',cookie,csrf,body:{name:'Fake',dataUrl:'data:image/png;base64,SGVsbG8='}});assert.equal(invalidMedia.code,400);
   const imageResponse=await request(base,media.body.url);assert.equal(imageResponse.code,200);assert.match(imageResponse.type,/image\/png/);
   const publicCatalog=await request(base,'/api/v1/catalog');assert.ok(publicCatalog.body.categories.some(x=>x.id==='test-box'));assert.ok(publicCatalog.body.products.some(x=>x.id===product.body.id));
   assert.equal((await request(base,'/api/v1/admin/management/overview',{cookie})).code,200);
