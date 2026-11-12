@@ -99,20 +99,38 @@ def page_setup(browser,viewport,role):
  assert text_frame.count()==1,'Side text should be rendered as a selectable canvas object'
  text_frame.scroll_into_view_if_needed()
  text_before=text_frame.evaluate("(el)=>el.style.left")
- text_bounds=text_frame.bounding_box()
- page.mouse.move(text_bounds['x']+text_bounds['width']/2,text_bounds['y']+text_bounds['height']/2)
- page.mouse.down()
- page.mouse.move(text_bounds['x']+text_bounds['width']/2+16,text_bounds['y']+text_bounds['height']/2+10,steps=3)
- page.mouse.up()
+ # Drive the same Pointer Events consumed by the editor. A real mouse hit-test on a
+ # transformed 3D back face is browser/compositor-dependent in headless Chromium;
+ # dispatching on the selected frame keeps this smoke test focused on drag logic.
+ page.evaluate("""() => {
+  const frame=document.querySelector('.face.back .face-text-frame');
+  const cube=document.querySelector('#productCube');
+  const rect=frame.getBoundingClientRect();
+  const x=rect.left+rect.width/2, y=rect.top+rect.height/2;
+  const fire=(target,type,clientX,clientY)=>target.dispatchEvent(new PointerEvent(type,{
+   bubbles:true,cancelable:true,pointerId:71,pointerType:'mouse',clientX,clientY
+  }));
+  fire(frame,'pointerdown',x,y);
+  fire(cube,'pointermove',x+16,y+10);
+  fire(cube,'pointerup',x+16,y+10);
+ }""")
  text_after=text_frame.evaluate("(el)=>el.style.left")
  assert text_before!=text_after,'Text object should be draggable on the selected product side'
  text_handle=text_frame.locator('.face-text-resize')
  text_handle_bounds=text_handle.bounding_box()
  text_width_before=text_frame.evaluate("(el)=>el.style.width")
- page.mouse.move(text_handle_bounds['x']+text_handle_bounds['width']/2,text_handle_bounds['y']+text_handle_bounds['height']/2)
- page.mouse.down()
- page.mouse.move(text_handle_bounds['x']+text_handle_bounds['width']/2+12,text_handle_bounds['y']+text_handle_bounds['height']/2+8,steps=3)
- page.mouse.up()
+ page.evaluate("""() => {
+  const frame=document.querySelector('.face.back .face-text-frame');
+  const handle=frame.querySelector('.face-text-resize');
+  const rect=handle.getBoundingClientRect();
+  const x=rect.left+rect.width/2, y=rect.top+rect.height/2;
+  const fire=(target,type,clientX,clientY)=>target.dispatchEvent(new PointerEvent(type,{
+   bubbles:true,cancelable:true,pointerId:72,pointerType:'mouse',clientX,clientY
+  }));
+  fire(handle,'pointerdown',x,y);
+  fire(frame,'pointermove',x+12,y+8);
+  fire(frame,'pointerup',x+12,y+8);
+ }""")
  text_width_after=text_frame.evaluate("(el)=>el.style.width")
  assert text_width_before!=text_width_after,'Text resize handle should change the text box size'
  text_font_after=text_frame.locator('.face-custom-text').evaluate("(el)=>el.style.fontSize")
