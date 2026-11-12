@@ -28,6 +28,23 @@ The app intentionally has no third-party runtime dependencies. It uses `node:sql
 
 `PAYMENTS_ENABLED=false` by default. Razorpay order creation, signature checks, provider-side payment capture lookup and signed webhooks are included as integration contracts but require merchant credentials, HTTPS, reconciliation jobs and formal UAT before enabling. Manual waybill entry is *not* courier booking.
 
+
+## Website administration and CMS
+
+The Super Admin console is available at **`/admin`** after starting the app and signing in with the bootstrapped Super Admin account.
+
+- **Homepage content:** update the eyebrow, hero description, announcement, footer text and contact details.
+- **Website pages:** create and publish plain-text About, FAQ, policy and other pages. Published pages are available at `/pages/<slug>`.
+- **Categories:** manage category name, tagline, type, compatible materials/finishes, indicative fallback rates, lead time, ordering and active visibility.
+- **Products:** manage product name, slug, category, SKU, description, specifications, image URL and storefront visibility.
+- **Media:** upload PNG/JPEG/WebP files up to 2 MB or register an HTTPS image URL. Uploaded image bytes are stored in the local SQLite database for UAT; use durable object storage before production.
+- **Pricing:** maintain effective-dated category rate cards (unit rate, setup, target margin and GST). Enter amounts in INR; the API stores integer paise. New estimates use the latest effective rate card. Existing quotation estimates remain saved snapshots.
+- **Business settings:** update company identity, GSTIN, contact, address and fulfilment defaults.
+
+Only Super Admin can change CMS, pricing and business settings. Category/product and media operations use the existing catalogue permissions. Mutations require the authenticated session's CSRF token and are written to the audit log. Category removal archives the category; products are archived rather than physically deleted.
+
+The admin console is an operational UAT foundation, not a production CMS certification. CMS page bodies are intentionally plain text (HTML is escaped). The local SQLite database and in-database image storage are not suitable for ephemeral hosting or high-volume production. Complete the PostgreSQL adapter, durable object storage, backup/restore, media scanning and release gates before public launch.
+
 ## Local checks
 
 ```bash
