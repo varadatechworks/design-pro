@@ -93,6 +93,29 @@ def page_setup(browser,viewport,role):
  assert page.locator('.face.back .face-custom-text').evaluate("(el)=>el.style.fontStyle")=='italic'
  assert page.locator('.face.back .face-custom-text').evaluate("(el)=>el.style.fontWeight")=='800'
  assert page.locator('.face.back .face-custom-text').evaluate("(el)=>el.style.color")=='rgb(255, 255, 255)'
+ text_frame=page.locator('.face.back .face-text-frame')
+ assert text_frame.count()==1,'Side text should be rendered as a selectable canvas object'
+ text_before=text_frame.evaluate("(el)=>el.style.left")
+ text_bounds=text_frame.bounding_box()
+ page.mouse.move(text_bounds['x']+text_bounds['width']/2,text_bounds['y']+text_bounds['height']/2)
+ page.mouse.down()
+ page.mouse.move(text_bounds['x']+text_bounds['width']/2+16,text_bounds['y']+text_bounds['height']/2+10,steps=3)
+ page.mouse.up()
+ text_after=text_frame.evaluate("(el)=>el.style.left")
+ assert text_before!=text_after,'Text object should be draggable on the selected product side'
+ text_handle=text_frame.locator('.face-text-resize')
+ text_handle_bounds=text_handle.bounding_box()
+ text_width_before=text_frame.evaluate("(el)=>el.style.width")
+ page.mouse.move(text_handle_bounds['x']+text_handle_bounds['width']/2,text_handle_bounds['y']+text_handle_bounds['height']/2)
+ page.mouse.down()
+ page.mouse.move(text_handle_bounds['x']+text_handle_bounds['width']/2+12,text_handle_bounds['y']+text_handle_bounds['height']/2+8,steps=3)
+ page.mouse.up()
+ text_width_after=text_frame.evaluate("(el)=>el.style.width")
+ assert text_width_before!=text_width_after,'Text resize handle should change the text box size'
+ page.locator('[data-face="front"]').click()
+ assert page.locator('.face.front .face-text-frame').count()==0,'Text must remain isolated to its own side'
+ page.locator('[data-face="back"]').click()
+ assert page.locator('.face.back .face-text-frame').count()==1,'Text position should persist when switching sides'
  page.locator('[data-face="front"]').click()
  page.locator('[data-face="back"]').click()
  assert page.locator('#faceFontFamily').input_value()=='sans'
