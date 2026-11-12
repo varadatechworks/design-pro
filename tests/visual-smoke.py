@@ -195,20 +195,25 @@ def page_setup(browser,viewport,role):
  frame.scroll_into_view_if_needed()
  page.wait_for_timeout(300)
  before=frame.evaluate("(el)=>el.style.left")
- bounds=frame.bounding_box()
- page.mouse.move(bounds['x']+bounds['width']/2,bounds['y']+bounds['height']/2)
- page.mouse.down()
- page.mouse.move(bounds['x']+bounds['width']/2+18,bounds['y']+bounds['height']/2+12,steps=3)
- page.mouse.up()
+ # Use the same pointer events consumed by the editor. Hit-testing a rotated 3D
+ # face can vary across headless compositors, so target the artwork object directly.
+ page.evaluate("""() => {
+  const frame=document.querySelector('.face.front .face-artwork-frame');
+  const cube=document.querySelector('#productCube');
+  const rect=frame.getBoundingClientRect(),x=rect.left+rect.width/2,y=rect.top+rect.height/2;
+  const fire=(target,type,clientX,clientY)=>target.dispatchEvent(new PointerEvent(type,{bubbles:true,cancelable:true,pointerId:73,pointerType:'mouse',clientX,clientY}));
+  fire(frame,'pointerdown',x,y);fire(cube,'pointermove',x+18,y+12);fire(cube,'pointerup',x+18,y+12);
+ }""")
  after=frame.evaluate("(el)=>el.style.left")
  assert before!=after,'Artwork should be draggable on the selected product side'
  handle=frame.locator('.face-artwork-resize')
- handle_bounds=handle.bounding_box()
  width_before=frame.evaluate("(el)=>el.style.width")
- page.mouse.move(handle_bounds['x']+handle_bounds['width']/2,handle_bounds['y']+handle_bounds['height']/2)
- page.mouse.down()
- page.mouse.move(handle_bounds['x']+handle_bounds['width']/2+14,handle_bounds['y']+handle_bounds['height']/2+10,steps=3)
- page.mouse.up()
+ page.evaluate("""() => {
+  const frame=document.querySelector('.face.front .face-artwork-frame'),handle=frame.querySelector('.face-artwork-resize'),cube=document.querySelector('#productCube');
+  const rect=handle.getBoundingClientRect(),x=rect.left+rect.width/2,y=rect.top+rect.height/2;
+  const fire=(target,type,clientX,clientY)=>target.dispatchEvent(new PointerEvent(type,{bubbles:true,cancelable:true,pointerId:74,pointerType:'mouse',clientX,clientY}));
+  fire(handle,'pointerdown',x,y);fire(cube,'pointermove',x+14,y+10);fire(cube,'pointerup',x+14,y+10);
+ }""")
  width_after=frame.evaluate("(el)=>el.style.width")
  assert width_before!=width_after,'Artwork resize handle should change the image size'
  assert not page.evaluate('document.documentElement.scrollWidth > innerWidth'),'Unexpected horizontal overflow after design studio interaction'
