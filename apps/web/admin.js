@@ -21,8 +21,8 @@ async function rates(){const [rd,cd]=await Promise.all([api('/admin/management/r
 async function costs(){
  const [d,cat,catalog]=await Promise.all([api('/admin/management/cost-components'),api('/admin/management/categories'),api('/catalog')]);
  const categories=cat.categories.filter(x=>x.active);
- const materialOptions=Object.entries(catalog.materials||{}).map(([id,m])=>({value:id,label:m.name||id}));
- const scopeOptions=[{value:'material',label:'Raw material'},{value:'production',label:'Production operation'},{value:'packing',label:'Packing / assembly'},{value:'shipping',label:'Shipping / handling'}];
+ const materialOptions=[...Object.entries(catalog.materials||{}).map(([id,m])=>({value:id,label:'Material · '+(m.name||id)})),...Object.entries(catalog.kitItems||{}).map(([id,m])=>({value:id,label:'Kit item · '+(m.name||id)}))];
+ const scopeOptions=[{value:'material',label:'Raw material'},{value:'kit',label:'Kit item / purchased component'},{value:'production',label:'Production operation'},{value:'packing',label:'Packing / assembly'},{value:'shipping',label:'Shipping / handling'}];
  const conditionOptions=[{value:'always',label:'Always apply'},{value:'finish',label:'Only when selected finish matches'},{value:'printing',label:'When printing is selected'},{value:'rush',label:'Rush orders only'}];
  const basisOptions=[{value:'sqm',label:'Per square metre (m²)'},{value:'piece',label:'Per finished piece'},{value:'1000_impressions',label:'Per 1,000 print impressions'},{value:'meter',label:'Per running metre'},{value:'hour',label:'Per production hour'},{value:'flat',label:'One-time fixed charge'}];
  const active=d.components.filter(x=>x.active);
@@ -30,7 +30,7 @@ async function costs(){
  formField('Cost code','code','','text')+formField('Display label','label','','text')+
  selectField('Cost type','scope',scopeOptions,'material')+
  selectField('Applies to category (optional)','categoryId',[{value:'',label:'All categories'},...categories.map(c=>({value:c.id,label:c.name}))],'')+
- selectField('Raw material (required for material costs)','materialId',[{value:'',label:'Select material'},...materialOptions],'')+
+ selectField('Raw material or kit item','materialId',[{value:'',label:'Select material'},...materialOptions],'')+
  selectField('When to apply','condition',conditionOptions,'always')+
  formField('Finish ID (only for finish-specific costs)','optionId','','text')+
  selectField('Rate basis','basis',basisOptions,'sqm')+
