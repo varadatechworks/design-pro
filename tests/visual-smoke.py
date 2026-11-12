@@ -56,11 +56,11 @@ def page_setup(browser,viewport,role):
  assert page.locator('.delivery-options').evaluate("(el)=>el.closest('.estimate-panel')!==null")
  assert page.locator('#stateSelect').evaluate("(el)=>el.closest('.studio-controls')===null")
  assert page.locator('#shapePreset').evaluate("(el)=>el.closest('.studio-controls')!==null")
- assert page.locator('#faceSelector').evaluate("(el)=>el.closest('.studio-center')!==null")
+ assert page.locator('#faceSelector').evaluate("(el)=>el.closest('.studio-controls')!==null")
  assert page.locator('#faceSelector [role=tab]').count()==6
  assert page.locator('#view360Toggle').count()==1
  assert page.locator('#rotationSlider').count()==1
- assert page.locator('#rotationValue').inner_text()=='331°'
+ assert page.locator('#rotationValue').text_content()=='331°'
  page.locator('#stateSelect').select_option('KA')
  page.locator('#destinationCountInput').fill('2')
  page.locator('#shipInput').uncheck()
@@ -137,6 +137,26 @@ def page_setup(browser,viewport,role):
  assert text_width_before!=text_width_after,'Text resize handle should change the text box size'
  text_font_after=text_frame.locator('.face-custom-text').evaluate("(el)=>el.style.fontSize")
  assert text_font_after!='24px','Text resize handle should scale the font size as well'
+ # Multiple independent text objects can coexist on the same side.
+ page.locator('#addTextLayer').click()
+ assert page.locator('.face.back .face-text-frame').count()==2
+ assert page.locator('#textLayerList .text-layer-item').count()==2
+ page.locator('#faceTextInput').fill('Second independent line')
+ assert page.locator('.face.back .face-text-frame .face-custom-text').count()==2
+ page.locator('#deleteTextLayer').click()
+ assert page.locator('.face.back .face-text-frame').count()==1
+ # Grid is a preview-only overlay and can be toggled without affecting the model.
+ page.locator('.left-studio-details > summary').last.click()
+ page.locator('#previewGridToggle').uncheck()
+ assert not page.locator('#productCube').evaluate("(el)=>el.classList.contains('grid-visible')")
+ page.locator('#previewGridToggle').check()
+ assert page.locator('#productCube').evaluate("(el)=>el.classList.contains('grid-visible')")
+ # Additional packaging shape presets are selectable.
+ page.locator('#shapePreset').select_option('hexagon-box')
+ assert page.locator('#productCube').get_attribute('data-shape')=='hexagon-box'
+ page.locator('#shapePreset').select_option('pentagon-box')
+ assert page.locator('#productCube').get_attribute('data-shape')=='pentagon-box'
+ page.locator('#shapePreset').select_option('cube')
  page.locator('#faceTab-front').click()
  assert page.locator('.face.front .face-text-frame').count()==0,'Text must remain isolated to its own side'
  page.locator('#faceTab-back').click()
@@ -158,7 +178,7 @@ def page_setup(browser,viewport,role):
  page.locator('#customShapeUpload').set_input_files(svg)
  page.wait_for_timeout(50)
  assert not page.locator('#customShapeThumb').is_hidden()
- page.locator('.left-studio-details > summary').first.click()
+ page.locator('.left-studio-details > summary').nth(1).click()
  page.locator('#artworkUpload').set_input_files(svg)
  page.wait_for_timeout(60)
  assert '200 × 150 mm' in page.locator('#artworkImportStatus').inner_text()
@@ -175,20 +195,25 @@ def page_setup(browser,viewport,role):
  frame.scroll_into_view_if_needed()
  page.wait_for_timeout(300)
  before=frame.evaluate("(el)=>el.style.left")
- bounds=frame.bounding_box()
- page.mouse.move(bounds['x']+bounds['width']/2,bounds['y']+bounds['height']/2)
- page.mouse.down()
- page.mouse.move(bounds['x']+bounds['width']/2+18,bounds['y']+bounds['height']/2+12,steps=3)
- page.mouse.up()
+ # Use the same pointer events consumed by the editor. Hit-testing a rotated 3D
+ # face can vary across headless compositors, so target the artwork object directly.
+ page.evaluate("""() => {
+  const frame=document.querySelector('.face.front .face-artwork-frame');
+  const cube=document.querySelector('#productCube');
+  const rect=frame.getBoundingClientRect(),x=rect.left+rect.width/2,y=rect.top+rect.height/2;
+  const fire=(target,type,clientX,clientY)=>target.dispatchEvent(new PointerEvent(type,{bubbles:true,cancelable:true,pointerId:73,pointerType:'mouse',clientX,clientY}));
+  fire(frame,'pointerdown',x,y);fire(cube,'pointermove',x+18,y+12);fire(cube,'pointerup',x+18,y+12);
+ }""")
  after=frame.evaluate("(el)=>el.style.left")
  assert before!=after,'Artwork should be draggable on the selected product side'
  handle=frame.locator('.face-artwork-resize')
- handle_bounds=handle.bounding_box()
  width_before=frame.evaluate("(el)=>el.style.width")
- page.mouse.move(handle_bounds['x']+handle_bounds['width']/2,handle_bounds['y']+handle_bounds['height']/2)
- page.mouse.down()
- page.mouse.move(handle_bounds['x']+handle_bounds['width']/2+14,handle_bounds['y']+handle_bounds['height']/2+10,steps=3)
- page.mouse.up()
+ page.evaluate("""() => {
+  const frame=document.querySelector('.face.front .face-artwork-frame'),handle=frame.querySelector('.face-artwork-resize'),cube=document.querySelector('#productCube');
+  const rect=handle.getBoundingClientRect(),x=rect.left+rect.width/2,y=rect.top+rect.height/2;
+  const fire=(target,type,clientX,clientY)=>target.dispatchEvent(new PointerEvent(type,{bubbles:true,cancelable:true,pointerId:74,pointerType:'mouse',clientX,clientY}));
+  fire(handle,'pointerdown',x,y);fire(cube,'pointermove',x+14,y+10);fire(cube,'pointerup',x+14,y+10);
+ }""")
  width_after=frame.evaluate("(el)=>el.style.width")
  assert width_before!=width_after,'Artwork resize handle should change the image size'
  assert not page.evaluate('document.documentElement.scrollWidth > innerWidth'),'Unexpected horizontal overflow after design studio interaction'
