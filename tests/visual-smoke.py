@@ -293,6 +293,7 @@ def run():
     })""")
     raise AssertionError('Order detail did not render after the detail action. Browser diagnostics: '+json.dumps(diagnostics,ensure_ascii=False)) from exc
    assert pg.locator('#orderDetails .detail-panel').count()==1
+   assert pg.evaluate("""() => (window.__requests||[]).some(request => request.method==='GET' && request.path.split('?')[0]==='/api/v1/orders/ord_UAT_SAMPLE_00001')"""), 'View details must call the order detail API for the selected order'
    pg.locator('[data-demo-capture="ord_UAT_SAMPLE_00001"]').click()
    assert pg.locator('#actionDialog').evaluate('(el)=>el.open')
    pg.locator('#actionDialogCancel').click()
