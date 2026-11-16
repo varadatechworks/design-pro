@@ -294,8 +294,22 @@ def run():
     raise AssertionError('Order detail did not render after the detail action. Browser diagnostics: '+json.dumps(diagnostics,ensure_ascii=False)) from exc
    assert pg.locator('#orderDetails .detail-panel').count()==1
    assert pg.evaluate("""() => (window.__requests||[]).some(request => request.method==='GET' && request.path.split('?')[0]==='/api/v1/orders/ord_UAT_SAMPLE_00001')"""), 'View details must call the order detail API for the selected order'
-   pg.locator('[data-demo-capture="ord_UAT_SAMPLE_00001"]').click()
-   assert pg.locator('#actionDialog').evaluate('(el)=>el.open')
+   capture_button=pg.locator('[data-demo-capture="ord_UAT_SAMPLE_00001"]')
+   assert capture_button.count()==1
+   assert capture_button.get_attribute('data-demo-capture-bound')=='true'
+   capture_button.click()
+   try:
+    pg.wait_for_function("() => document.querySelector('#actionDialog')?.open === true",timeout=1500)
+   except Exception as exc:
+    diagnostics=pg.evaluate("""() => ({
+     dialogOpen:document.querySelector('#actionDialog')?.open||false,
+     dialogTitle:document.querySelector('#actionDialogTitle')?.textContent||null,
+     captureButton:document.querySelector('[data-demo-capture]')?.outerHTML||null,
+     requests:window.__requests||[],
+     pageErrors:window.__pageErrors||[],
+     toast:document.querySelector('#toast')?.innerText||null
+    })""")
+    raise AssertionError('UAT capture action did not open its confirmation dialog. Browser diagnostics: '+json.dumps(diagnostics,ensure_ascii=False)) from exc
    pg.locator('#actionDialogCancel').click()
    assert not pg.locator('#actionDialog').evaluate('(el)=>el.open')
    pg.locator('[data-tab="tickets"]').click()
