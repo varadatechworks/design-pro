@@ -315,7 +315,19 @@ def run():
    pg.locator('[data-tab="tickets"]').click()
    assert pg.locator('[data-ticket-detail="tkt_UAT_0001"]').count()==1
    pg.locator('[data-ticket-detail="tkt_UAT_0001"]').click()
+   try:
+    pg.wait_for_function("() => document.querySelector('#ticketDetails .detail-panel') !== null",timeout=3000)
+   except Exception as exc:
+    diagnostics=pg.evaluate("""() => ({
+     ticketPanel:document.querySelector('#ticketDetails')?.innerHTML||null,
+     ticketButton:document.querySelector('[data-ticket-detail="tkt_UAT_0001"]')?.outerHTML||null,
+     requests:window.__requests||[],
+     pageErrors:window.__pageErrors||[],
+     toast:document.querySelector('#toast')?.innerText||null
+    })""")
+    raise AssertionError('Ticket detail action did not render its panel. Browser diagnostics: '+json.dumps(diagnostics,ensure_ascii=False)) from exc
    assert pg.locator('#ticketDetails .detail-panel').count()==1
+   assert pg.evaluate("() => (window.__requests||[]).some(request => request.method==='GET' && request.path.split('?')[0]==='/api/v1/tickets/tkt_UAT_0001')"), 'Opening a service request must fetch its detail from the ticket API'
    pg.evaluate("showAuth('login')")
    assert pg.locator('#authModal').is_visible()
    pg.keyboard.press('Escape')
