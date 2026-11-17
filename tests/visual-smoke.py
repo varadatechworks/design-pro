@@ -313,8 +313,10 @@ def run():
    pg.locator('#actionDialogCancel').click()
    assert not pg.locator('#actionDialog').evaluate('(el)=>el.open')
    pg.locator('[data-tab="tickets"]').click()
-   assert pg.locator('[data-ticket-detail="tkt_UAT_0001"]').count()==1
-   pg.locator('[data-ticket-detail="tkt_UAT_0001"]').click()
+   ticket_button=pg.locator('[data-ticket-detail="tkt_UAT_0001"]')
+   assert ticket_button.count()==1
+   assert ticket_button.get_attribute('data-ticket-detail-bound')=='true', 'Ticket detail action must be explicitly bound after rendering'
+   ticket_button.click()
    try:
     pg.wait_for_function("() => document.querySelector('#ticketDetails .detail-panel') !== null",timeout=3000)
    except Exception as exc:
